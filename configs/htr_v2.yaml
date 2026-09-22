@@ -8,9 +8,9 @@ data:
   target_height: 64
   max_width: 1024
   pad_value: 255
-  batch_size: 16
-  val_batch_size: 16
-  num_workers: 4
+  batch_size: 32
+  val_batch_size: 32
+  num_workers: 10
   augment_train: true
 
 model:

@@ -172,8 +172,8 @@ val_char_ds = BanglaCharacterDataset(CHAR_MANIFEST, split="val", workspace_root=
 print(f"📊 Stage 1 Character Samples - Train: {len(train_char_ds):,}, Val: {len(val_char_ds):,}")
 
 # DataLoader
-char_train_loader = DataLoader(train_char_ds, batch_size=256, shuffle=True, num_workers=4, pin_memory=True)
-char_val_loader = DataLoader(val_char_ds, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
+char_train_loader = DataLoader(train_char_ds, batch_size=256, shuffle=True, num_workers=10, pin_memory=True, persistent_workers=True)
+char_val_loader = DataLoader(val_char_ds, batch_size=256, shuffle=False, num_workers=10, pin_memory=True, persistent_workers=True)
 
 # Inspect 12 sample characters
 sample_indices = random.sample(range(len(train_char_ds)), 12)
@@ -323,12 +323,12 @@ val_line_ds = BanglaLineHTRDataset(LINE_MANIFEST, tokenizer, split="val", transf
 print(f"📝 Line HTR Dataset - Train Lines: {len(train_line_ds):,}, Val Lines: {len(val_line_ds):,}")
 
 line_train_loader = DataLoader(
-    train_line_ds, batch_size=16, shuffle=True,
-    num_workers=4, pin_memory=True, collate_fn=collate_line_fn
+    train_line_ds, batch_size=32, shuffle=True,
+    num_workers=10, pin_memory=True, persistent_workers=True, collate_fn=collate_line_fn
 )
 line_val_loader = DataLoader(
-    val_line_ds, batch_size=16, shuffle=False,
-    num_workers=4, pin_memory=True, collate_fn=collate_line_fn
+    val_line_ds, batch_size=32, shuffle=False,
+    num_workers=10, pin_memory=True, persistent_workers=True, collate_fn=collate_line_fn
 )
 
 # Visualize a sample handwritten line

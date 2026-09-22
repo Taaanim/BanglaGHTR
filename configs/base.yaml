@@ -15,7 +15,7 @@ hardware:
   device: "cuda"
   gpu_id: 0
   mixed_precision: true # amp autocast
-  num_workers: 4
+  num_workers: 10
   pin_memory: true
 
 normalization:

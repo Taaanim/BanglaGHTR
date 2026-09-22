@@ -120,8 +120,17 @@ def main():
         val_char_ds = BanglaCharacterDataset(char_manifest, split="val", workspace_root=PROJECT_ROOT)
         log_msg(f"Char Samples: Train={len(train_char_ds):,}, Val={len(val_char_ds):,}")
 
-        char_train_loader = DataLoader(train_char_ds, batch_size=256, shuffle=True, num_workers=4, pin_memory=True)
-        char_val_loader = DataLoader(val_char_ds, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
+        num_workers = cfg["data"].get("num_workers", 10)
+        char_train_loader = DataLoader(
+            train_char_ds, batch_size=256, shuffle=True,
+            num_workers=num_workers, pin_memory=True,
+            persistent_workers=True if num_workers > 0 else False
+        )
+        char_val_loader = DataLoader(
+            val_char_ds, batch_size=256, shuffle=False,
+            num_workers=num_workers, pin_memory=True,
+            persistent_workers=True if num_workers > 0 else False
+        )
 
         char_model = CharacterClassifierBackbone(in_channels=1, num_classes=122, hidden_dim=256).to(device)
         char_criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
@@ -199,13 +208,18 @@ def main():
     val_line_ds = BanglaLineHTRDataset(line_manifest, tokenizer, split="val", transform=val_transform)
     log_msg(f"Line HTR Datasets: Train={len(train_line_ds):,}, Val={len(val_line_ds):,}")
 
+    num_workers = cfg["data"].get("num_workers", 10)
     line_train_loader = DataLoader(
-        train_line_ds, batch_size=cfg["data"].get("batch_size", 16), shuffle=True,
-        num_workers=4, pin_memory=True, collate_fn=collate_line_fn
+        train_line_ds, batch_size=cfg["data"].get("batch_size", 32), shuffle=True,
+        num_workers=num_workers, pin_memory=True,
+        persistent_workers=True if num_workers > 0 else False,
+        collate_fn=collate_line_fn
     )
     line_val_loader = DataLoader(
-        val_line_ds, batch_size=cfg["data"].get("val_batch_size", 16), shuffle=False,
-        num_workers=4, pin_memory=True, collate_fn=collate_line_fn
+        val_line_ds, batch_size=cfg["data"].get("val_batch_size", 32), shuffle=False,
+        num_workers=num_workers, pin_memory=True,
+        persistent_workers=True if num_workers > 0 else False,
+        collate_fn=collate_line_fn
     )
 
     # BANGHTR-X v2 Model Instantiation
