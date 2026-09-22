@@ -370,7 +370,7 @@ class HTRTrainerV2:
 
     def load_checkpoint(self, path: str):
         """Loads training checkpoint for resuming."""
-        ckpt = torch.load(path, map_location=self.device)
+        ckpt = torch.load(path, map_location="cpu")
         self.model.load_state_dict(ckpt["model_state_dict"])
         self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         if "scheduler_state_dict" in ckpt and self.scheduler is not None:

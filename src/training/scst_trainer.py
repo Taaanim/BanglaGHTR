@@ -192,17 +192,18 @@ class SCSTTrainer:
             images = batch["images"].to(self.device)
             refs = batch["texts"]
 
-            encoder_out = self.model.encode(images)
+            with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+                encoder_out = self.model.encode(images)
 
-            if use_beam_search:
-                beam_width = self.config.get("model", {}).get("beam_width", 5)
-                decoded_tokens = self.model.attn_decoder.beam_search(
-                    encoder_out, beam_width=beam_width, max_len=150
-                )
-            else:
-                decoded_tokens = self.model.attn_decoder.greedy_decode(
-                    encoder_out, max_len=150
-                )
+                if use_beam_search:
+                    beam_width = self.config.get("model", {}).get("beam_width", 5)
+                    decoded_tokens = self.model.attn_decoder.beam_search(
+                        encoder_out, beam_width=beam_width, max_len=85
+                    )
+                else:
+                    decoded_tokens = self.model.attn_decoder.greedy_decode(
+                        encoder_out, max_len=85
+                    )
 
             pred_texts = self._decode_tokens_to_text(decoded_tokens)
             all_preds.extend(pred_texts)

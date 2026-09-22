@@ -408,8 +408,10 @@ print("="*50 + "\\n")
     # -------------------------------------------------------------
     add_cell("code", """# Cell 6: Stage 2 Hybrid HTR Training Execution
 EPOCHS_STAGE2 = 10  # Full convergence is 30-50 epochs; set to 10 for demonstration
+FORCE_RETRAIN_STAGE2 = False  # Set to True to force retraining even if checkpoint exists
 
-config_v2["training"]["epochs"] = EPOCHS_STAGE2
+best_stage2_ckpt = "checkpoints/best_model.pt"
+
 trainer_v2 = HTRTrainerV2(
     model=model_v2,
     tokenizer=tokenizer,
@@ -417,41 +419,53 @@ trainer_v2 = HTRTrainerV2(
     device=device,
     checkpoint_dir="checkpoints"
 )
-trainer_v2.init_scheduler(steps_per_epoch=len(line_train_loader))
 
-print(f"🚀 Training BANGHTR-X v2 with Hybrid CTC+Attention Loss ({EPOCHS_STAGE2} Epochs)...")
+if os.path.exists(best_stage2_ckpt) and not FORCE_RETRAIN_STAGE2:
+    print(f"✅ Found existing trained Stage 2 checkpoint at: {best_stage2_ckpt}")
+    print("   Loading weights directly to proceed to Stage 3 / Evaluation.")
+    print("   (Set FORCE_RETRAIN_STAGE2 = True above if you wish to retrain from scratch).\\n")
+    ckpt = torch.load(best_stage2_ckpt, map_location="cpu")
+    model_v2.load_state_dict(ckpt["model_state_dict"])
+    if "history" in ckpt:
+        trainer_v2.history = ckpt["history"]
+else:
+    config_v2["training"]["epochs"] = EPOCHS_STAGE2
+    trainer_v2.init_scheduler(steps_per_epoch=len(line_train_loader))
 
-for epoch in range(1, EPOCHS_STAGE2 + 1):
-    train_res = trainer_v2.train_epoch(line_train_loader, epoch=epoch)
-    
-    # Evaluate with Attention Greedy decode
-    eval_res = trainer_v2.evaluate(line_val_loader, decode_method="greedy")
-    
-    trainer_v2.update_history(train_res, eval_res)
-    is_best = trainer_v2.best_cer > eval_res["val_cer"]
-    trainer_v2.save_checkpoint(epoch, eval_res, is_best=is_best)
-    
-    print(f"Epoch {epoch:2d}/{EPOCHS_STAGE2} | Loss: {train_res['train_loss']:.4f} (CTC: {train_res['ctc_loss']:.4f}, Attn: {train_res['attn_loss']:.4f}) | "
-          f"CER: {eval_res['val_cer']*100:.2f}% | WER: {eval_res['val_wer']*100:.2f}% | BG-CER: {eval_res['val_bg_cer']*100:.2f}% {'⭐ Best' if is_best else ''}")
+    print(f"🚀 Training BANGHTR-X v2 with Hybrid CTC+Attention Loss ({EPOCHS_STAGE2} Epochs)...")
 
-# Plot Stage 2 Training History
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4))
-ax1.plot(trainer_v2.history["train_loss"], "o-", label="Total Loss", color="#1f77b4")
-ax1.set_xlabel("Epoch")
-ax1.set_ylabel("Loss")
-ax1.set_title("Stage 2: Hybrid Loss Progression")
-ax1.grid(True)
-ax1.legend()
+    for epoch in range(1, EPOCHS_STAGE2 + 1):
+        train_res = trainer_v2.train_epoch(line_train_loader, epoch=epoch)
+        
+        # Evaluate with Attention Greedy decode
+        eval_res = trainer_v2.evaluate(line_val_loader, decode_method="greedy")
+        
+        trainer_v2.update_history(train_res, eval_res)
+        is_best = trainer_v2.best_cer > eval_res["val_cer"]
+        trainer_v2.save_checkpoint(epoch, eval_res, is_best=is_best)
+        
+        print(f"Epoch {epoch:2d}/{EPOCHS_STAGE2} | Loss: {train_res['train_loss']:.4f} (CTC: {train_res['ctc_loss']:.4f}, Attn: {train_res['attn_loss']:.4f}) | "
+              f"CER: {eval_res['val_cer']*100:.2f}% | WER: {eval_res['val_wer']*100:.2f}% | BG-CER: {eval_res['val_bg_cer']*100:.2f}% {'⭐ Best' if is_best else ''}")
 
-ax2.plot([c * 100 for c in trainer_v2.history["val_cer"]], "s-", color="#d62728", label="Val CER (%)")
-ax2.plot([w * 100 for w in trainer_v2.history["val_wer"]], "^-", color="#ff7f0e", label="Val WER (%)")
-ax2.set_xlabel("Epoch")
-ax2.set_ylabel("Error Rate (%)")
-ax2.set_title("Stage 2: Sequence Error Rates")
-ax2.grid(True)
-ax2.legend()
-plt.tight_layout()
-plt.show()
+# Plot Stage 2 Training History if available
+if trainer_v2.history.get("train_loss"):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4))
+    ax1.plot(trainer_v2.history["train_loss"], "o-", label="Total Loss", color="#1f77b4")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.set_title("Stage 2: Hybrid Loss Progression")
+    ax1.grid(True)
+    ax1.legend()
+
+    ax2.plot([c * 100 for c in trainer_v2.history["val_cer"]], "s-", color="#d62728", label="Val CER (%)")
+    ax2.plot([w * 100 for w in trainer_v2.history["val_wer"]], "^-", color="#ff7f0e", label="Val WER (%)")
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("Error Rate (%)")
+    ax2.set_title("Stage 2: Sequence Error Rates")
+    ax2.grid(True)
+    ax2.legend()
+    plt.tight_layout()
+    plt.show()
 """)
 
     # -------------------------------------------------------------
@@ -476,22 +490,28 @@ If the sampled sequence outperforms the greedy baseline, its tokens are reinforc
     # CELL 11: Code - Stage 3 SCST Execution
     # -------------------------------------------------------------
     add_cell("code", """# Cell 7: Stage 3 SCST Reinforcement Learning Execution
-import gc
-# Free cached memory from Stage 2
+import sys, gc
+sys.last_traceback = None
+sys.last_value = None
+
+# Free cached optimizer tensors to maximize VRAM for RL
 if 'trainer_v2' in locals() and hasattr(trainer_v2, 'optimizer'):
-    del trainer_v2.optimizer
+    trainer_v2.optimizer.state.clear()
 gc.collect()
 torch.cuda.empty_cache()
-print(f"🧹 Cleaned GPU memory: {torch.cuda.memory_allocated() / (1024**2):.1f} MB allocated")
+print(f"🧹 Active GPU memory: {torch.cuda.memory_allocated() / (1024**2):.1f} MB allocated, {torch.cuda.memory_reserved() / (1024**2):.1f} MB reserved")
 
 from src.training.scst_trainer import SCSTTrainer
-
 
 # Load best checkpoint from Stage 2
 best_stage2_path = "checkpoints/best_model.pt"
 if os.path.exists(best_stage2_path):
-    print(f"📥 Loading best Stage 2 checkpoint from {best_stage2_path}...")
-    trainer_v2.load_checkpoint(best_stage2_path)
+    print(f"📥 Loading best Stage 2 weights from {best_stage2_path}...")
+    ckpt = torch.load(best_stage2_path, map_location="cpu")
+    model_v2.load_state_dict(ckpt["model_state_dict"])
+    print("✅ Best Stage 2 weights loaded successfully!")
+else:
+    print("ℹ️ Using current model_v2 in-memory weights.")
 
 # Initialize SCST Trainer
 scst_trainer = SCSTTrainer(
@@ -509,8 +529,8 @@ print(f"🎮 Starting SCST (RL) Optimization ({EPOCHS_STAGE3} Epochs)...")
 for epoch in range(1, EPOCHS_STAGE3 + 1):
     rl_res = scst_trainer.train_epoch(line_train_loader)
     
-    # Evaluate with attention greedy
-    eval_res = trainer_v2.evaluate(line_val_loader, decode_method="greedy")
+    # Fast evaluation with greedy decode
+    eval_res = scst_trainer.evaluate(line_val_loader, use_beam_search=False)
     
     history_rl["reward"].append(rl_res["mean_reward"])
     history_rl["advantage"].append(rl_res["mean_advantage"])
@@ -568,6 +588,15 @@ We now benchmark BANGHTR-X v2 across multiple decoding configurations:
 from src.evaluation.metrics import compute_all_metrics
 
 print("🔬 Running Multi-Configuration Benchmark on Validation Set...")
+
+if 'trainer_v2' not in locals():
+    trainer_v2 = HTRTrainerV2(
+        model=model_v2,
+        tokenizer=tokenizer,
+        config=config_v2,
+        device=device,
+        checkpoint_dir="checkpoints"
+    )
 
 results = {}
 
