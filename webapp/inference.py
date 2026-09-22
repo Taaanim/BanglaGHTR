@@ -23,8 +23,9 @@ from src.data.transforms import AugmentedAspectRatioPadResize
 WEIGHTS_PATH = os.path.join(PROJECT_ROOT, "exports", "banghtr_x_v2_production", "banghtr_x_v2_weights.pt")
 VOCAB_PATH   = os.path.join(PROJECT_ROOT, "exports", "banghtr_x_v2_production", "vocab.json")
 
-# Priority: try RL-best > Stage2-best > production export
+# Priority: try RL-final > RL-best > Stage2-best > production export
 CHECKPOINT_PRIORITY = [
+    os.path.join(PROJECT_ROOT, "checkpoints", "banghtr_x_v2_rl_final.pt"),
     os.path.join(PROJECT_ROOT, "checkpoints", "banghtr_x_v2_rl_best.pt"),
     os.path.join(PROJECT_ROOT, "checkpoints", "best_model.pt"),
     WEIGHTS_PATH,
@@ -183,6 +184,12 @@ def predict(image: Image.Image, beam_width: int = 5) -> dict:
         dict with keys: 'ctc_text', 'attn_text', 'best_text'
     """
     _load_model()
+
+    # Accept string path, numpy array, or PIL Image
+    if isinstance(image, str):
+        image = Image.open(image)
+    elif isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
 
     # Preprocess
     gray = image.convert("L")
