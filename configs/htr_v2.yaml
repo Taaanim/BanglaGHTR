@@ -8,8 +8,8 @@ data:
   target_height: 64
   max_width: 1024
   pad_value: 255
-  batch_size: 32
-  val_batch_size: 32
+  batch_size: 48
+  val_batch_size: 48
   num_workers: 10
   augment_train: true
 
@@ -24,7 +24,7 @@ model:
   use_matra_attn: true
   use_grapheme_moe: true
   dropout: 0.1
-  label_smoothing: 0.1
+  label_smoothing: 0.05
   decoder_type: "hybrid"  # "ctc", "attention", or "hybrid"
   beam_width: 5
   max_seq_len: 256
@@ -39,22 +39,22 @@ training:
   epochs: 50
   lr: 0.0003
   weight_decay: 0.00001
-  warmup_steps: 500
-  ctc_weight: 0.3
-  attn_weight: 0.7
+  warmup_steps: 300
+  ctc_weight: 0.5
+  attn_weight: 0.5
   grad_clip: 5.0
   scheduler: "onecycle"
-  patience: 10
+  patience: 12
   checkpoint_interval: 5
 
   # Stage 3: RL / SCST Refinement
-  rl_epochs: 15
-  rl_lr: 0.00001
+  rl_epochs: 10
+  rl_lr: 0.000005
   rl_reward_weights:
-    cer: 0.6
-    wer: 0.3
+    cer: 0.7
+    wer: 0.2
     bg_cer: 0.1
-  sample_temperature: 1.2
+  sample_temperature: 1.0
   baseline_ema: 0.99
 
 paths:

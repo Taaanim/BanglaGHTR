@@ -15,7 +15,7 @@ def run_inference(image):
     if image is None:
         return "", "", "⚠️ Please upload an image first."
 
-    result = predict(image)
+    result = predict(image, beam_width=5)
 
     ctc  = result["ctc_text"]  or "(empty)"
     attn = result["attn_text"] or "(empty)"
@@ -31,8 +31,8 @@ with gr.Blocks(title="BANGHTR-X v2 — Bangla HTR Demo", theme=gr.themes.Soft())
         # 🇧🇩 BANGHTR-X v2 — Bangla Handwritten Text Recognition
         Upload a **handwritten Bengali line image** and the model will transcribe it.
 
-        > ⚠️ **Note:** Model is currently at ~32% CER (trained 10 / 50 epochs).
-        > CTC output is more reliable than Attention at this stage.
+        > 💡 **Best Prediction** uses CTC Beam Search (width=5) for higher accuracy.
+        > Attention output improves significantly after full 50-epoch training.
         """
     )
 
@@ -46,9 +46,9 @@ with gr.Blocks(title="BANGHTR-X v2 — Bangla HTR Demo", theme=gr.themes.Soft())
             run_btn = gr.Button("🔍 Recognize", variant="primary")
 
         with gr.Column(scale=1):
-            best_out  = gr.Textbox(label="✅ Best Prediction (CTC Greedy)", lines=2, interactive=False)
-            ctc_out   = gr.Textbox(label="📊 CTC Greedy Output",           lines=2, interactive=False)
-            attn_out  = gr.Textbox(label="🧠 Attention Greedy Output",     lines=2, interactive=False)
+            best_out  = gr.Textbox(label="✅ Best Prediction (CTC Beam Search, width=5)", lines=2, interactive=False)
+            ctc_out   = gr.Textbox(label="📊 CTC Beam Search Output",                    lines=2, interactive=False)
+            attn_out  = gr.Textbox(label="🧠 Attention Greedy Output",                   lines=2, interactive=False)
 
     run_btn.click(
         fn=run_inference,
@@ -69,7 +69,7 @@ with gr.Blocks(title="BANGHTR-X v2 — Bangla HTR Demo", theme=gr.themes.Soft())
         ### How to use
         1. Upload a **grayscale or color scan** of a single handwritten Bengali line.
         2. Click **Recognize** (or just upload — it auto-runs).
-        3. Compare CTC vs Attention outputs.
+        3. Compare CTC Beam Search vs Attention outputs.
 
         ### Sample images
         Sample validation images are at:
