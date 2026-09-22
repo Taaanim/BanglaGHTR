@@ -98,7 +98,12 @@ class CharacterClassifierBackbone(nn.Module):
             nn.Linear(hidden_dim, num_classes)
         )
 
+    @property
+    def stem(self):
+        return self.features
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.features(x)
         logits = self.classifier(feat)
         return logits
+

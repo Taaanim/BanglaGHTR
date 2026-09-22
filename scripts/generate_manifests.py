@@ -170,7 +170,23 @@ def build_dataset_2_manifests():
         print(f"Error: {D2_ROOT} not found!")
         return
 
-    # Build Class Taxonomy Mapping
+    # Load verified character metadata if available
+    meta_path = os.path.join(WORKSPACE_ROOT, "metaData_img.csv")
+    meta_dict = {}
+    if os.path.exists(meta_path):
+        df_m = pd.read_csv(meta_path)
+        for _, r in df_m.iterrows():
+            meta_dict[int(r['Folder Name'])] = str(r['Char Name']).strip()
+
+    # Build Class Taxonomy Mapping with exact 52 verified compound characters
+    compound_chars = [
+        'ব্দ', 'ঙ্গ', 'স্ক', 'স্ফ', 'চ্ছ', 'স্থ', 'ক্ত', 'স্ন', 'ষ্ণ', 'ম্প',
+        'প্ত', 'ম্ব', 'ত্থ', 'দ্ভ', 'ষ্ঠ', 'ল্প', 'ষ্প', 'ন্দ', 'ন্ধ', 'স্ম',
+        'ণ্ঠ', 'স্ত', 'ষ্ট', 'ন্ম', 'ত্ত', 'ঙ্খ', 'ত্ন', 'ন্ড', 'জ্ঞ', 'ড্ড',
+        'ক্ষ', 'দ্ব', 'চ্চ', 'ক্র', 'দ্দ', 'জ্জ', 'ক্ক', 'ন্ত', 'ক্ট', 'ঞ্চ',
+        'ট্ট', 'শ্চ', 'ক্স', 'জ্ব', 'ঞ্জ', 'দ্ধ', 'ন্ন', 'ঘ্ন', 'ক্ল', 'হ্ন',
+        'স্প', 'ল্ত'
+    ]
     vowel_kars = [' া', ' ি', ' ী', ' ু', ' ূ', ' ৃ', ' ে', ' ৈ', ' ো', ' ৌ']
     basic_vowels = ['অ', 'আ', 'ই', 'ঈ', 'উ', 'ঊ', 'ঋ', 'এ', 'ঐ', 'ও', 'ঔ']
     consonants = ['ক', 'খ', 'গ', 'ঘ', 'ঙ', 'চ', 'ছ', 'জ', 'ঝ', 'ঞ', 'ট', 'ঠ', 'ড', 'ঢ', 'ণ',
@@ -182,32 +198,36 @@ def build_dataset_2_manifests():
     for c_id in range(122):
         if 0 <= c_id <= 9:
             cat = "Vowel Diacritic (Kar)"
-            char = vowel_kars[c_id]
+            char = meta_dict.get(c_id, vowel_kars[c_id])
         elif 10 <= c_id <= 20:
             cat = "Independent Vowel"
-            char = basic_vowels[c_id - 10]
+            char = meta_dict.get(c_id, basic_vowels[c_id - 10])
         elif 21 <= c_id <= 59:
             cat = "Consonant"
-            char = consonants[c_id - 21]
+            char = meta_dict.get(c_id, consonants[c_id - 21])
         elif 60 <= c_id <= 111:
             cat = "Compound Character (Yuktakshar)"
-            char = f"যুক্তবর্ণ_{c_id}"
+            char = meta_dict.get(c_id, compound_chars[c_id - 60])
         elif 112 <= c_id <= 121:
             cat = "Bengali Numeral"
-            char = numerals[c_id - 112]
+            char = meta_dict.get(c_id, numerals[c_id - 112])
         else:
             cat = "Unknown"
             char = ""
+
+        norm_char = unicodedata.normalize('NFC', char)
         taxonomy.append({
             "class_id": c_id,
             "category": cat,
-            "char_sample": unicodedata.normalize('NFC', char)
+            "character": norm_char,
+            "char_sample": norm_char
         })
 
     df_tax = pd.DataFrame(taxonomy)
     tax_path = os.path.join(MANIFEST_DIR, "char_classes_122.csv")
-    df_tax.to_csv(tax_path, index=False)
-    print(f"Saved 122 class taxonomy to {tax_path}")
+    df_tax.to_csv(tax_path, index=False, encoding="utf-8")
+    print(f"Saved 122 verified class taxonomy to {tax_path}")
+
 
     # Discover images and writer IDs
     records = []
