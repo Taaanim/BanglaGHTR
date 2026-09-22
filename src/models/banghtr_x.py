@@ -326,7 +326,9 @@ class BANGHTR_X_V2(nn.Module):
         if hasattr(self, "ctc_decoder"):
             counts["ctc_decoder"] = sum(p.numel() for p in self.ctc_decoder.parameters())
         if hasattr(self, "attn_decoder"):
-            counts["attn_decoder"] = sum(p.numel() for p in self.attn_decoder.parameters())
+            attn_count = sum(p.numel() for p in self.attn_decoder.parameters())
+            counts["attn_decoder"] = attn_count
+            counts["attention_decoder"] = attn_count
         counts["total"] = sum(p.numel() for p in self.parameters())
         counts["trainable"] = sum(p.numel() for p in self.parameters() if p.requires_grad)
         return counts
