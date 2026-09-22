@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+datasets/
+checkpoints/
+logs/
+visualizations/
+exports/
+.ipynb_checkpoints/
+*.pyc
+Dataset/
+archive/

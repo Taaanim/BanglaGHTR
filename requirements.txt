@@ -1,0 +1,28 @@
+# Core Deep Learning & PyTorch (Matched with CUDA 11.7 on RTX 4090)
+torch>=2.0.1
+torchvision>=0.15.2
+
+# Data Processing & Computer Vision
+numpy>=1.24.0
+pandas>=1.5.0
+pillow>=9.2.0
+opencv-python>=4.8.0
+openpyxl>=3.0.10
+
+# Machine Learning & Metrics
+scipy>=1.9.0
+scikit-learn>=1.0.0
+editdistance>=0.8.1
+
+# Vision Transformers & Tensor Utilities
+timm>=0.9.0
+einops>=0.7.0
+
+# Configuration & Utilities
+pyyaml>=6.0
+tqdm>=4.65.0
+
+# Jupyter Notebook Support
+ipykernel>=6.25.0
+ipywidgets>=8.0.0
+matplotlib>=3.7.0

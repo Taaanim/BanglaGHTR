@@ -1,0 +1,63 @@
+# BANGHTR-X v2: Hybrid CTC + Attention HTR with RL Refinement
+experiment_name: "banghtr_x_v2_hybrid"
+stage: "hybrid_htr"
+
+data:
+  manifest_path: "datasets/manifests/dataset_1_lines.csv"
+  char_manifest_path: "datasets/manifests/dataset_2_chars.csv"
+  target_height: 64
+  max_width: 1024
+  pad_value: 255
+  batch_size: 16
+  val_batch_size: 16
+  num_workers: 4
+  augment_train: true
+
+model:
+  stem_type: "convnext"
+  in_channels: 1
+  hidden_dim: 256
+  encoder_layers: 4
+  decoder_layers: 4
+  num_heads: 8
+  dim_feedforward: 1024
+  use_matra_attn: true
+  use_grapheme_moe: true
+  dropout: 0.1
+  label_smoothing: 0.1
+  decoder_type: "hybrid"  # "ctc", "attention", or "hybrid"
+  beam_width: 5
+  max_seq_len: 256
+
+training:
+  # Stage 1: Character Pretraining
+  char_pretrain_epochs: 20
+  char_pretrain_lr: 0.001
+  char_pretrain_batch_size: 128
+
+  # Stage 2: Supervised HTR (Hybrid CTC + Attention)
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.00001
+  warmup_steps: 500
+  ctc_weight: 0.3
+  attn_weight: 0.7
+  grad_clip: 5.0
+  scheduler: "onecycle"
+  patience: 10
+  checkpoint_interval: 5
+
+  # Stage 3: RL / SCST Refinement
+  rl_epochs: 15
+  rl_lr: 0.00001
+  rl_reward_weights:
+    cer: 0.6
+    wer: 0.3
+    bg_cer: 0.1
+  sample_temperature: 1.2
+  baseline_ema: 0.99
+
+paths:
+  checkpoint_dir: "checkpoints"
+  log_dir: "logs"
+  output_dir: "outputs"

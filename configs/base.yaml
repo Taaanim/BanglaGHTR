@@ -1,0 +1,23 @@
+# Global Configuration for BANGHTR-X Research Framework
+project_name: "BanglaGHTR"
+experiment_id: "exp_001_initial_setup"
+seed: 42
+
+paths:
+  workspace_root: "."
+  manifests_dir: "datasets/manifests"
+  checkpoints_dir: "checkpoints"
+  logs_dir: "logs"
+  outputs_dir: "outputs"
+  archive_dir: "archive"
+
+hardware:
+  device: "cuda"
+  gpu_id: 0
+  mixed_precision: true # amp autocast
+  num_workers: 4
+  pin_memory: true
+
+normalization:
+  unicode_form: "NFC"
+  strip_whitespace: true

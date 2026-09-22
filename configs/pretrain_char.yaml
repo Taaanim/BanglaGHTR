@@ -1,0 +1,26 @@
+# Level 1: Isolated Character Pretraining Configuration
+experiment_name: "pretrain_ekush_122_chars"
+stage: "char_pretrain"
+
+data:
+  manifest_path: "datasets/manifests/dataset_2_chars.csv"
+  taxonomy_path: "datasets/manifests/char_classes_122.csv"
+  num_classes: 122
+  image_size: [28, 28]
+  invert_contrast: true # Convert black-background (MNIST-style) to white-paper
+  batch_size: 256
+  val_batch_size: 256
+
+model:
+  backbone: "convnext_tiny"
+  in_channels: 1
+  hidden_dim: 256
+  dropout: 0.1
+
+training:
+  epochs: 30
+  lr: 0.001
+  weight_decay: 0.0001
+  scheduler: "cosine"
+  warmup_epochs: 3
+  early_stopping_patience: 5

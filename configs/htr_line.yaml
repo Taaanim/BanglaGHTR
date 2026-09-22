@@ -1,0 +1,30 @@
+# Level 4: Line-Level Sequence HTR Configuration (BANGHTR-X)
+experiment_name: "banghtr_x_line_htr"
+stage: "line_htr"
+
+data:
+  manifest_path: "datasets/manifests/dataset_1_lines.csv"
+  target_height: 64
+  max_width: 1024
+  pad_value: 255 # White background
+  batch_size: 16
+  val_batch_size: 16
+
+model:
+  stem_type: "convnext"
+  in_channels: 1
+  hidden_dim: 256
+  encoder_layers: 4
+  num_heads: 8
+  matra_attention: true
+  diacritic_expert: true
+  decoder_type: "ctc"
+  beam_width: 10
+
+training:
+  epochs: 50
+  lr: 0.0003
+  weight_decay: 0.00001
+  grad_clip: 5.0
+  scheduler: "onecycle"
+  checkpoint_interval: 5
