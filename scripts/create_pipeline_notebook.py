@@ -154,6 +154,9 @@ In this stage, we train the ConvNeXt visual stem on **292,869 isolated Bengali c
     # CELL 4: Code - Stage 1 DataLoader & Visual Samples
     # -------------------------------------------------------------
     add_cell("code", """# Cell 2: Stage 1 Dataset & Sample Inspection
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 from src.data.datasets import BanglaCharacterDataset
 from src.data.transforms import CharacterTransform
 from src.models.vision.backbones import CharacterClassifierBackbone
@@ -199,86 +202,95 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 
 EPOCHS_STAGE1 = 5  # Set to 15-20 for full pretraining, 5 for fast pipeline run
 LR_STAGE1 = 1e-3
+FORCE_RETRAIN_STAGE1 = False  # Set to True to retrain from scratch
 
-char_model = CharacterClassifierBackbone(in_channels=1, num_classes=122, hidden_dim=256).to(device)
-criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
-optimizer = torch.optim.AdamW(char_model.parameters(), lr=LR_STAGE1, weight_decay=1e-4)
-scheduler = CosineAnnealingLR(optimizer, T_max=EPOCHS_STAGE1, eta_min=1e-6)
-scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
+stem_ckpt_path = "checkpoints/stage1_convnext_stem_best.pt"
 
-history_s1 = {"train_loss": [], "val_acc": [], "lr": []}
-best_val_acc = 0.0
+if os.path.exists(stem_ckpt_path) and not FORCE_RETRAIN_STAGE1:
+    print(f"✅ Found existing trained Stage 1 checkpoint at: {stem_ckpt_path}")
+    print("   Skipping Stage 1 training loop to proceed directly to Stage 2.")
+    print("   (Set FORCE_RETRAIN_STAGE1 = True above if you wish to retrain from scratch).")
+else:
+    char_model = CharacterClassifierBackbone(in_channels=1, num_classes=122, hidden_dim=256).to(device)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
+    optimizer = torch.optim.AdamW(char_model.parameters(), lr=LR_STAGE1, weight_decay=1e-4)
+    scheduler = CosineAnnealingLR(optimizer, T_max=EPOCHS_STAGE1, eta_min=1e-6)
+    scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
 
-print(f"🚀 Starting Stage 1 Pretraining ({EPOCHS_STAGE1} Epochs)...")
+    history_s1 = {"train_loss": [], "val_acc": [], "lr": []}
+    best_val_acc = 0.0
 
-for epoch in range(1, EPOCHS_STAGE1 + 1):
-    char_model.train()
-    total_loss, total_samples = 0.0, 0
-    pbar = tqdm(char_train_loader, desc=f"Stage 1 Epoch {epoch}/{EPOCHS_STAGE1}", leave=False)
-    
-    for batch in pbar:
-        images = batch["image"].to(device, non_blocking=True)
-        labels = batch["label"].to(device, non_blocking=True)
+    print(f"🚀 Starting Stage 1 Pretraining ({EPOCHS_STAGE1} Epochs)...")
+
+    for epoch in range(1, EPOCHS_STAGE1 + 1):
+        char_model.train()
+        total_loss, total_samples = 0.0, 0
+        pbar = tqdm(char_train_loader, desc=f"Stage 1 Epoch {epoch}/{EPOCHS_STAGE1}", leave=False)
         
-        optimizer.zero_grad()
-        with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
-            logits = char_model(images)
-            loss = criterion(logits, labels)
-            
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
-        
-        B = images.size(0)
-        total_loss += loss.item() * B
-        total_samples += B
-        pbar.set_postfix({"loss": f"{loss.item():.4f}"})
-        
-    scheduler.step()
-    epoch_train_loss = total_loss / max(total_samples, 1)
-    
-    # Validation
-    char_model.eval()
-    correct, total_val = 0, 0
-    with torch.no_grad():
-        for batch in char_val_loader:
+        for batch in pbar:
             images = batch["image"].to(device, non_blocking=True)
             labels = batch["label"].to(device, non_blocking=True)
+            
+            optimizer.zero_grad()
             with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
                 logits = char_model(images)
-            preds = logits.argmax(dim=-1)
-            correct += (preds == labels).sum().item()
-            total_val += labels.size(0)
+                loss = criterion(logits, labels)
+                
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             
-    val_acc = correct / max(total_val, 1)
-    history_s1["train_loss"].append(epoch_train_loss)
-    history_s1["val_acc"].append(val_acc)
-    history_s1["lr"].append(optimizer.param_groups[0]["lr"])
-    
-    is_best = val_acc > best_val_acc
-    if is_best:
-        best_val_acc = val_acc
-        torch.save(char_model.stem.state_dict(), "checkpoints/stage1_convnext_stem_best.pt")
+            B = images.size(0)
+            total_loss += loss.item() * B
+            total_samples += B
+            pbar.set_postfix({"loss": f"{loss.item():.4f}"})
+            
+        scheduler.step()
+        epoch_train_loss = total_loss / max(total_samples, 1)
         
-    print(f"Epoch {epoch:2d}/{EPOCHS_STAGE1} | Train Loss: {epoch_train_loss:.4f} | Val Acc: {val_acc*100:.2f}% | Best: {best_val_acc*100:.2f}% {'⭐ Best' if is_best else ''}")
+        # Validation
+        char_model.eval()
+        correct, total_val = 0, 0
+        with torch.no_grad():
+            for batch in char_val_loader:
+                images = batch["image"].to(device, non_blocking=True)
+                labels = batch["label"].to(device, non_blocking=True)
+                with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+                    logits = char_model(images)
+                preds = logits.argmax(dim=-1)
+                correct += (preds == labels).sum().item()
+                total_val += labels.size(0)
+                
+        val_acc = correct / max(total_val, 1)
+        history_s1["train_loss"].append(epoch_train_loss)
+        history_s1["val_acc"].append(val_acc)
+        history_s1["lr"].append(optimizer.param_groups[0]["lr"])
+        
+        is_best = val_acc > best_val_acc
+        if is_best:
+            best_val_acc = val_acc
+            torch.save(char_model.stem.state_dict(), stem_ckpt_path)
+            
+        print(f"Epoch {epoch:2d}/{EPOCHS_STAGE1} | Train Loss: {epoch_train_loss:.4f} | Val Acc: {val_acc*100:.2f}% | Best: {best_val_acc*100:.2f}% {'⭐ Best' if is_best else ''}")
 
-# Plot Stage 1 Curves
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-ax1.plot(range(1, EPOCHS_STAGE1 + 1), history_s1["train_loss"], "o-", color="#1f77b4", label="Train Loss")
-ax1.set_xlabel("Epoch")
-ax1.set_ylabel("Loss")
-ax1.set_title("Stage 1: Training Loss")
-ax1.grid(True)
+    # Plot Stage 1 Curves
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    ax1.plot(range(1, EPOCHS_STAGE1 + 1), history_s1["train_loss"], "o-", color="#1f77b4", label="Train Loss")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.set_title("Stage 1: Training Loss")
+    ax1.grid(True)
 
-ax2.plot(range(1, EPOCHS_STAGE1 + 1), [a * 100 for a in history_s1["val_acc"]], "s-", color="#2ca02c", label="Val Accuracy")
-ax2.set_xlabel("Epoch")
-ax2.set_ylabel("Accuracy (%)")
-ax2.set_title("Stage 1: Validation Accuracy")
-ax2.grid(True)
-plt.tight_layout()
-plt.show()
-print(f"✅ Stage 1 Complete. ConvNeXt Visual Stem saved to checkpoints/stage1_convnext_stem_best.pt")
+    ax2.plot(range(1, EPOCHS_STAGE1 + 1), [a * 100 for a in history_s1["val_acc"]], "s-", color="#2ca02c", label="Val Accuracy")
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("Accuracy (%)")
+    ax2.set_title("Stage 1: Validation Accuracy")
+    ax2.grid(True)
+    plt.tight_layout()
+    plt.show()
+    print(f"✅ Stage 1 Complete. ConvNeXt Visual Stem saved to {stem_ckpt_path}")
 """)
+
 
     # -------------------------------------------------------------
     # CELL 6: Markdown - Stage 2 Supervised HTR
