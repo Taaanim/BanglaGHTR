@@ -476,7 +476,16 @@ If the sampled sequence outperforms the greedy baseline, its tokens are reinforc
     # CELL 11: Code - Stage 3 SCST Execution
     # -------------------------------------------------------------
     add_cell("code", """# Cell 7: Stage 3 SCST Reinforcement Learning Execution
+import gc
+# Free cached memory from Stage 2
+if 'trainer_v2' in locals() and hasattr(trainer_v2, 'optimizer'):
+    del trainer_v2.optimizer
+gc.collect()
+torch.cuda.empty_cache()
+print(f"🧹 Cleaned GPU memory: {torch.cuda.memory_allocated() / (1024**2):.1f} MB allocated")
+
 from src.training.scst_trainer import SCSTTrainer
+
 
 # Load best checkpoint from Stage 2
 best_stage2_path = "checkpoints/best_model.pt"

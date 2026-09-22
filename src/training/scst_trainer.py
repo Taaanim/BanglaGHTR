@@ -98,67 +98,69 @@ class SCSTTrainer:
         all_preds = []
         all_refs = []
 
+        micro_batch_size = 8  # Safe chunk size for autoregressive policy gradient
+
         for batch in tqdm(dataloader, desc="SCST Train", leave=False):
             images = batch["images"].to(self.device)
             refs = batch["texts"]
             B = images.size(0)
 
             self.optimizer.zero_grad()
+            batch_loss = 0.0
 
-            # Step 1: Get encoder output (shared for both greedy and sampled)
-            with torch.no_grad():
-                encoder_out = self.model.encode(images)
+            # Process in micro-batches to prevent CUDA OOM during autoregressive sampling
+            for i in range(0, B, micro_batch_size):
+                sub_imgs = images[i:i + micro_batch_size]
+                sub_refs = refs[i:i + micro_batch_size]
+                sub_B = sub_imgs.size(0)
 
-            # Step 2: Greedy decode (baseline, no gradient)
-            with torch.no_grad():
-                greedy_tokens = self.model.attn_decoder.greedy_decode(
-                    encoder_out, max_len=150
-                )
-            greedy_texts = self._decode_tokens_to_text(greedy_tokens)
+                with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+                    # Step 1: Encoder output (no grad)
+                    with torch.no_grad():
+                        encoder_out = self.model.encode(sub_imgs)
+                        greedy_tokens = self.model.attn_decoder.greedy_decode(
+                            encoder_out, max_len=80
+                        )
+                    greedy_texts = self._decode_tokens_to_text(greedy_tokens)
 
-            # Step 3: Sample decode (policy, WITH gradient for log_probs)
-            sampled_tokens, log_probs = self.model.attn_decoder.sample_decode(
-                encoder_out, temperature=self.temperature, max_len=150
-            )
-            sampled_texts = self._decode_tokens_to_text(sampled_tokens)
+                    # Step 2: Sample decode (policy WITH gradients)
+                    sampled_tokens, log_probs = self.model.attn_decoder.sample_decode(
+                        encoder_out, temperature=self.temperature, max_len=80
+                    )
+                    sampled_texts = self._decode_tokens_to_text(sampled_tokens)
 
-            # Step 4: Compute rewards
-            greedy_rewards = compute_rewards(
-                greedy_texts, refs,
-                self.cer_weight, self.wer_weight, self.bg_cer_weight
-            )
-            sampled_rewards = compute_rewards(
-                sampled_texts, refs,
-                self.cer_weight, self.wer_weight, self.bg_cer_weight
-            )
+                    # Step 3: Compute rewards
+                    greedy_rewards = compute_rewards(
+                        greedy_texts, sub_refs,
+                        self.cer_weight, self.wer_weight, self.bg_cer_weight
+                    )
+                    sampled_rewards = compute_rewards(
+                        sampled_texts, sub_refs,
+                        self.cer_weight, self.wer_weight, self.bg_cer_weight
+                    )
 
-            # Step 5: Compute advantages
-            rewards_tensor = torch.tensor(sampled_rewards, device=self.device)
-            baseline_tensor = torch.tensor(greedy_rewards, device=self.device)
-            advantages = rewards_tensor - baseline_tensor  # [B]
+                    rewards_tensor = torch.tensor(sampled_rewards, device=self.device)
+                    baseline_tensor = torch.tensor(greedy_rewards, device=self.device)
+                    advantages = rewards_tensor - baseline_tensor  # [sub_B]
 
-            # Update EMA baseline
-            batch_mean_reward = rewards_tensor.mean().item()
-            if not self.ema_initialized:
-                self.ema_reward = batch_mean_reward
-                self.ema_initialized = True
-            else:
-                self.ema_reward = self.ema_decay * self.ema_reward + (1 - self.ema_decay) * batch_mean_reward
+                    # Scale loss by micro-batch fraction
+                    rl_loss = -(advantages * log_probs).mean() * (sub_B / float(B))
 
-            # Step 6: REINFORCE loss = -advantage * log_prob
-            rl_loss = -(advantages * log_probs).mean()
+                # Accumulate gradients
+                rl_loss.backward()
 
-            # Backward pass
-            rl_loss.backward()
+                batch_loss += rl_loss.item() * B
+                all_rewards.extend(sampled_rewards)
+                all_advantages.extend(advantages.tolist())
+                all_preds.extend(sampled_texts)
+                all_refs.extend(sub_refs)
+
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.grad_clip)
             self.optimizer.step()
 
-            total_loss += rl_loss.item() * B
+            total_loss += batch_loss
             total_samples += B
-            all_rewards.extend(sampled_rewards)
-            all_advantages.extend(advantages.tolist())
-            all_preds.extend(sampled_texts)
-            all_refs.extend(refs)
+
 
         # Compute epoch metrics
         cer = compute_cer(all_preds, all_refs)
