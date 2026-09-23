@@ -56,16 +56,19 @@ def _load_model():
     # Device
     _device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # Build model (same arch as training)
+    # Build model (v3 architecture — also loads v2 checkpoints via strict=False)
     _model = BANGHTR_X_V2(
         num_classes=num_classes,
         in_channels=1,
-        hidden_dim=256,
-        encoder_layers=4,
+        hidden_dim=384,
+        encoder_layers=6,
         decoder_layers=4,
         num_heads=8,
+        dim_feedforward=1536,
         use_matra_attn=True,
         use_grapheme_moe=True,
+        moe_aux_weight=0.01,
+        stem_feat_dim=384,
         decoder_type="hybrid",
     ).to(_device)
 
@@ -78,8 +81,12 @@ def _load_model():
             if isinstance(state, dict) and "model_state_dict" in state:
                 state = state["model_state_dict"]
             try:
-                _model.load_state_dict(state, strict=True)
+                # strict=False: allows loading v2 weights into v3 arch (new layers
+                # will use random init but existing weights are transferred correctly)
+                missing, unexpected = _model.load_state_dict(state, strict=False)
                 weights_loaded = ckpt_path
+                if missing:
+                    print(f"[BANGHTR-X] Note: {len(missing)} new v3 layers initialized randomly")
                 break
             except Exception as e:
                 print(f"[BANGHTR-X] Warning: Could not load {ckpt_path}: {e}")

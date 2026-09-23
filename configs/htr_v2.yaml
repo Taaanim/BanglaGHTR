@@ -1,5 +1,5 @@
-# BANGHTR-X v2: Hybrid CTC + Attention HTR with RL Refinement
-experiment_name: "banghtr_x_v2_hybrid"
+# BANGHTR-X v3: Upgraded Hybrid CTC + Attention HTR with Structural Matra Attention
+experiment_name: "banghtr_x_v3_hybrid"
 stage: "hybrid_htr"
 
 data:
@@ -8,43 +8,45 @@ data:
   target_height: 64
   max_width: 1024
   pad_value: 255
-  batch_size: 48
-  val_batch_size: 48
+  batch_size: 32        # Reduced from 48 to accommodate larger v3 model (384 hidden_dim)
+  val_batch_size: 32
   num_workers: 10
   augment_train: true
 
 model:
-  stem_type: "convnext"
+  stem_type: "convnext_v3"   # 4-stage residual stem with dual pool
   in_channels: 1
-  hidden_dim: 256
-  encoder_layers: 4
+  hidden_dim: 384            # Up from 256; better capacity for 170-class Bengali vocab
+  encoder_layers: 6          # Up from 4; deeper global context
   decoder_layers: 4
   num_heads: 8
-  dim_feedforward: 1024
+  dim_feedforward: 1536      # 4× hidden_dim
   use_matra_attn: true
   use_grapheme_moe: true
   dropout: 0.1
-  label_smoothing: 0.05
-  decoder_type: "hybrid"  # "ctc", "attention", or "hybrid"
+  label_smoothing: 0.05      # Keep from v2 (proven)
+  decoder_type: "hybrid"
   beam_width: 5
   max_seq_len: 256
+  moe_aux_weight: 0.01       # MoE load-balancing loss weight
+  stem_feat_dim: 384         # Max-pool channel count from stem (= stage3/4 channels)
 
 training:
-  # Stage 1: Character Pretraining
+  # Stage 1: Character Pretraining (skipped if checkpoint exists)
   char_pretrain_epochs: 20
   char_pretrain_lr: 0.001
   char_pretrain_batch_size: 128
 
   # Stage 2: Supervised HTR (Hybrid CTC + Attention)
-  epochs: 50
-  lr: 0.0003
+  epochs: 60                 # More epochs for larger model to converge
+  lr: 0.0002                 # Slightly lower than v2 (conservative for fine-tune)
   weight_decay: 0.00001
-  warmup_steps: 300
-  ctc_weight: 0.5
-  attn_weight: 0.5
+  warmup_steps: 500          # Longer warmup for larger model
+  ctc_weight: 0.4            # Slightly less CTC; attention is more capable now
+  attn_weight: 0.6
   grad_clip: 5.0
   scheduler: "onecycle"
-  patience: 12
+  patience: 15               # More patience to avoid premature stopping
   checkpoint_interval: 5
 
   # Stage 3: RL / SCST Refinement

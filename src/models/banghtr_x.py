@@ -119,20 +119,22 @@ class BANGHTR_X_V2(nn.Module):
         self,
         num_classes: int,
         in_channels: int = 1,
-        hidden_dim: int = 256,
-        encoder_layers: int = 4,
+        hidden_dim: int = 384,
+        encoder_layers: int = 6,
         decoder_layers: int = 4,
         num_heads: int = 8,
-        dim_feedforward: int = 1024,
+        dim_feedforward: int = 1536,
         use_matra_attn: bool = True,
         use_grapheme_moe: bool = True,
         dropout: float = 0.1,
-        label_smoothing: float = 0.1,
+        label_smoothing: float = 0.05,
         decoder_type: str = "hybrid",  # "ctc", "attention", "hybrid"
         max_seq_len: int = 256,
         pad_idx: int = 1,
         bos_idx: int = 3,
-        eos_idx: int = 4
+        eos_idx: int = 4,
+        moe_aux_weight: float = 0.01,  # weight for MoE load-balancing loss
+        stem_feat_dim: int = 384,       # ConvNeXt stem's max-pool channel count
     ):
         super().__init__()
         self.num_classes = num_classes
@@ -140,13 +142,19 @@ class BANGHTR_X_V2(nn.Module):
         self.decoder_type = decoder_type
         self.use_matra_attn = use_matra_attn
         self.use_grapheme_moe = use_grapheme_moe
+        self.moe_aux_weight = moe_aux_weight
+        self.stem_feat_dim = stem_feat_dim
 
         # ─── Vision Stem ───
         self.visual_stem = ConvNeXtStem(in_channels=in_channels, hidden_dim=hidden_dim)
 
         # ─── Bengali-Specific Domain Modules ───
         if use_matra_attn:
-            self.matra_attention = MatraAttentionModule(hidden_dim=hidden_dim)
+            self.matra_attention = MatraAttentionModule(
+                hidden_dim=hidden_dim,
+                num_heads=min(num_heads, 8),
+                stem_feat_dim=stem_feat_dim
+            )
 
         if use_grapheme_moe:
             self.grapheme_moe = GraphemeMoEFusion(hidden_dim=hidden_dim)
@@ -194,12 +202,14 @@ class BANGHTR_X_V2(nn.Module):
         Returns:
             encoder_out: [B, T, hidden_dim]
         """
-        # Visual features
+        # Visual features — also populates stem._max_feat for matra attention
         feat = self.visual_stem(images)  # [B, T, D]
 
         # Domain-specific modules
         if self.use_matra_attn:
-            feat = self.matra_attention(feat)
+            # Inject structural max-pool feature for structurally-grounded gating
+            max_feat = self.visual_stem.get_max_feat()  # [B, T, stem_feat_dim]
+            feat = self.matra_attention(feat, max_feat=max_feat)
 
         if self.use_grapheme_moe:
             feat = self.grapheme_moe(feat)
@@ -242,6 +252,10 @@ class BANGHTR_X_V2(nn.Module):
             attn_logits, attn_loss = self.attn_decoder(encoder_out, target_tokens)
             results["attn_logits"] = attn_logits
             results["attn_loss"] = attn_loss
+
+        # MoE load-balancing auxiliary loss (always computed during forward)
+        if self.use_grapheme_moe and mode == "train":
+            results["moe_aux_loss"] = self.grapheme_moe.aux_loss
 
         return results
 

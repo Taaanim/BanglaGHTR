@@ -216,15 +216,21 @@ class HTRTrainerV2:
             self.optimizer.zero_grad()
 
             with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
-                outputs = self.model(images, target_tokens=attn_targets)
+                outputs = self.model(images, target_tokens=attn_targets, mode="train")
 
                 loss = torch.tensor(0.0, device=self.device)
 
-                # CTC loss
+                # CTC loss — use actual valid frame lengths to fix padding bug
                 if "ctc_log_probs" in outputs:
                     log_probs = outputs["ctc_log_probs"]
                     T_seq = log_probs.shape[0]
-                    input_lengths = torch.full((B,), T_seq, dtype=torch.long, device=self.device)
+                    if "valid_widths" in batch:
+                        # valid_widths / 4 (stem total stride-w=4) = valid T frames
+                        input_lengths = (
+                            batch["valid_widths"].float() / 4
+                        ).long().clamp(1, T_seq).to(self.device)
+                    else:
+                        input_lengths = torch.full((B,), T_seq, dtype=torch.long, device=self.device)
                     ctc_loss = self.ctc_criterion(log_probs, targets, input_lengths, target_lengths)
                     loss = loss + self.ctc_weight * ctc_loss
                     total_ctc_loss += ctc_loss.item() * B
@@ -234,6 +240,11 @@ class HTRTrainerV2:
                     attn_loss = outputs["attn_loss"]
                     loss = loss + self.attn_weight * attn_loss
                     total_attn_loss += attn_loss.item() * B
+
+                # MoE load-balancing auxiliary loss (Switch-Transformer style)
+                if "moe_aux_loss" in outputs:
+                    moe_aux_weight = getattr(self.model, "moe_aux_weight", 0.01)
+                    loss = loss + moe_aux_weight * outputs["moe_aux_loss"]
 
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
