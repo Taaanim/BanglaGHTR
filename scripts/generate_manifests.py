@@ -171,7 +171,9 @@ def build_dataset_2_manifests():
         return
 
     # Load verified character metadata if available
-    meta_path = os.path.join(WORKSPACE_ROOT, "metaData_img.csv")
+    meta_path = os.path.join(WORKSPACE_ROOT, "archive", "reference_data", "metaData_img.csv")
+    if not os.path.exists(meta_path):
+        meta_path = os.path.join(WORKSPACE_ROOT, "metaData_img.csv")
     meta_dict = {}
     if os.path.exists(meta_path):
         df_m = pd.read_csv(meta_path)
