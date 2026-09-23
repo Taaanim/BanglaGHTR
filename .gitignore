@@ -1,13 +1,24 @@
+# Virtual environment & Python cache
 .venv/
 __pycache__/
-datasets/
-checkpoints/
-logs/
-visualizations/
-exports/
+.pytest_cache/
 .ipynb_checkpoints/
 *.pyc
 *.log
+
+# Raw image datasets & temporary archives
 Dataset/
 archive/
 bin/
+logs/
+visualizations/
+
+# Large model weight checkpoints (>100MB)
+checkpoints/
+*.pt
+*.pth
+*.bin
+
+# Exclude large word and char manifests to keep repo lightweight
+datasets/manifests/dataset_1_words.csv
+datasets/manifests/dataset_2_chars.csv

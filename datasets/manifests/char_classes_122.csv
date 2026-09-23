@@ -1,0 +1,123 @@
+class_id,category,character,char_sample
+0,Vowel Diacritic (Kar),া,া
+1,Vowel Diacritic (Kar),ি,ি
+2,Vowel Diacritic (Kar),ী,ী
+3,Vowel Diacritic (Kar),ু,ু
+4,Vowel Diacritic (Kar),ূ,ূ
+5,Vowel Diacritic (Kar),ৃ,ৃ
+6,Vowel Diacritic (Kar),ে,ে
+7,Vowel Diacritic (Kar),ৈ,ৈ
+8,Vowel Diacritic (Kar),ো,ো
+9,Vowel Diacritic (Kar),ৌ,ৌ
+10,Independent Vowel,অ,অ
+11,Independent Vowel,আ,আ
+12,Independent Vowel,ই,ই
+13,Independent Vowel,ঈ,ঈ
+14,Independent Vowel,উ,উ
+15,Independent Vowel,ঊ,ঊ
+16,Independent Vowel,ঋ,ঋ
+17,Independent Vowel,এ,এ
+18,Independent Vowel,ঐ,ঐ
+19,Independent Vowel,ও,ও
+20,Independent Vowel,ঔ,ঔ
+21,Consonant,ক,ক
+22,Consonant,খ,খ
+23,Consonant,গ,গ
+24,Consonant,ঘ,ঘ
+25,Consonant,ঙ,ঙ
+26,Consonant,চ,চ
+27,Consonant,ছ,ছ
+28,Consonant,জ,জ
+29,Consonant,ঝ,ঝ
+30,Consonant,ঞ,ঞ
+31,Consonant,ট,ট
+32,Consonant,ঠ,ঠ
+33,Consonant,ড,ড
+34,Consonant,ঢ,ঢ
+35,Consonant,ণ,ণ
+36,Consonant,ত,ত
+37,Consonant,থ,থ
+38,Consonant,দ,দ
+39,Consonant,ধ,ধ
+40,Consonant,ন,ন
+41,Consonant,প,প
+42,Consonant,ফ,ফ
+43,Consonant,ব,ব
+44,Consonant,ভ,ভ
+45,Consonant,ম,ম
+46,Consonant,য,য
+47,Consonant,র,র
+48,Consonant,ল,ল
+49,Consonant,শ,শ
+50,Consonant,ষ,ষ
+51,Consonant,স,স
+52,Consonant,হ,হ
+53,Consonant,ড়,ড়
+54,Consonant,ঢ়,ঢ়
+55,Consonant,য়,য়
+56,Consonant,ৎ,ৎ
+57,Consonant,ং,ং
+58,Consonant,ঃ,ঃ
+59,Consonant,ঁ,ঁ
+60,Compound Character (Yuktakshar),ব্দ,ব্দ
+61,Compound Character (Yuktakshar),ঙ্গ,ঙ্গ
+62,Compound Character (Yuktakshar),স্ক,স্ক
+63,Compound Character (Yuktakshar),স্ফ,স্ফ
+64,Compound Character (Yuktakshar),চ্ছ,চ্ছ
+65,Compound Character (Yuktakshar),স্থ,স্থ
+66,Compound Character (Yuktakshar),ক্ত,ক্ত
+67,Compound Character (Yuktakshar),স্ন,স্ন
+68,Compound Character (Yuktakshar),ষ্ণ,ষ্ণ
+69,Compound Character (Yuktakshar),ম্প,ম্প
+70,Compound Character (Yuktakshar),প্ত,প্ত
+71,Compound Character (Yuktakshar),ম্ব,ম্ব
+72,Compound Character (Yuktakshar),ত্থ,ত্থ
+73,Compound Character (Yuktakshar),দ্ভ,দ্ভ
+74,Compound Character (Yuktakshar),ষ্ঠ,ষ্ঠ
+75,Compound Character (Yuktakshar),ল্প,ল্প
+76,Compound Character (Yuktakshar),ষ্প,ষ্প
+77,Compound Character (Yuktakshar),ন্দ,ন্দ
+78,Compound Character (Yuktakshar),ন্ধ,ন্ধ
+79,Compound Character (Yuktakshar),স্ম,স্ম
+80,Compound Character (Yuktakshar),ণ্ঠ,ণ্ঠ
+81,Compound Character (Yuktakshar),স্ত,স্ত
+82,Compound Character (Yuktakshar),ষ্ট,ষ্ট
+83,Compound Character (Yuktakshar),ন্ম,ন্ম
+84,Compound Character (Yuktakshar),ত্ত,ত্ত
+85,Compound Character (Yuktakshar),ঙ্খ,ঙ্খ
+86,Compound Character (Yuktakshar),ত্ন,ত্ন
+87,Compound Character (Yuktakshar),ন্ড,ন্ড
+88,Compound Character (Yuktakshar),জ্ঞ,জ্ঞ
+89,Compound Character (Yuktakshar),ড্ড,ড্ড
+90,Compound Character (Yuktakshar),ক্ষ,ক্ষ
+91,Compound Character (Yuktakshar),দ্ব,দ্ব
+92,Compound Character (Yuktakshar),চ্চ,চ্চ
+93,Compound Character (Yuktakshar),ক্র,ক্র
+94,Compound Character (Yuktakshar),দ্দ,দ্দ
+95,Compound Character (Yuktakshar),জ্জ,জ্জ
+96,Compound Character (Yuktakshar),ক্ক,ক্ক
+97,Compound Character (Yuktakshar),ন্ত,ন্ত
+98,Compound Character (Yuktakshar),ক্ট,ক্ট
+99,Compound Character (Yuktakshar),ঞ্চ,ঞ্চ
+100,Compound Character (Yuktakshar),ট্ট,ট্ট
+101,Compound Character (Yuktakshar),শ্চ,শ্চ
+102,Compound Character (Yuktakshar),ক্স,ক্স
+103,Compound Character (Yuktakshar),জ্ব,জ্ব
+104,Compound Character (Yuktakshar),ঞ্জ,ঞ্জ
+105,Compound Character (Yuktakshar),দ্ধ,দ্ধ
+106,Compound Character (Yuktakshar),ন্ন,ন্ন
+107,Compound Character (Yuktakshar),ঘ্ন,ঘ্ন
+108,Compound Character (Yuktakshar),ক্ল,ক্ল
+109,Compound Character (Yuktakshar),হ্ন,হ্ন
+110,Compound Character (Yuktakshar),স্প,স্প
+111,Compound Character (Yuktakshar),ল্ত,ল্ত
+112,Bengali Numeral,০,০
+113,Bengali Numeral,১,১
+114,Bengali Numeral,২,২
+115,Bengali Numeral,৩,৩
+116,Bengali Numeral,৪,৪
+117,Bengali Numeral,৫,৫
+118,Bengali Numeral,৬,৬
+119,Bengali Numeral,৭,৭
+120,Bengali Numeral,৮,৮
+121,Bengali Numeral,৯,৯
