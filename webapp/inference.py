@@ -23,89 +23,177 @@ from src.data.transforms import AugmentedAspectRatioPadResize
 WEIGHTS_PATH = os.path.join(PROJECT_ROOT, "exports", "banghtr_x_v2_production", "banghtr_x_v2_weights.pt")
 VOCAB_PATH   = os.path.join(PROJECT_ROOT, "exports", "banghtr_x_v2_production", "vocab.json")
 
-# Priority: try RL-final > RL-best > Stage2-best > production export
+# Priority: best_model.pt (Stage 2 Supervised Best) > latest epoch ckpt > RL-final > RL-best > production export
 CHECKPOINT_PRIORITY = [
+    os.path.join(PROJECT_ROOT, "checkpoints", "best_model.pt"),
+    os.path.join(PROJECT_ROOT, "checkpoints", "checkpoint_epoch_21.pt"),
     os.path.join(PROJECT_ROOT, "checkpoints", "banghtr_x_v2_rl_final.pt"),
     os.path.join(PROJECT_ROOT, "checkpoints", "banghtr_x_v2_rl_best.pt"),
-    os.path.join(PROJECT_ROOT, "checkpoints", "best_model.pt"),
     WEIGHTS_PATH,
 ]
 
-# ── Globals (loaded once) ─────────────────────────────────────────────────────
-_model     = None
-_char2idx  = None
-_idx2char  = None
-_device    = None
-_transform = None
+# ── Globals (loaded once or reloaded on checkpoint switch) ────────────────────
+_model                = None
+_char2idx             = None
+_idx2char             = None
+_device               = None
+_transform            = None
+_loaded_checkpoint    = None
+_checkpoint_metadata  = {}
 
 
-def _load_model():
-    global _model, _char2idx, _idx2char, _device, _transform
+def get_available_checkpoints() -> dict:
+    """
+    Scans checkpoints/ and exports/ directories and returns a dictionary:
+        {display_name: absolute_file_path}
+    Sorted with the most recommended/accurate models on top.
+    """
+    ckpt_dir = os.path.join(PROJECT_ROOT, "checkpoints")
+    options = {}
 
-    if _model is not None:
-        return  # already loaded
+    # 1. Best Supervised Stage 2 (Top Recommendation)
+    best_path = os.path.join(ckpt_dir, "best_model.pt")
+    if os.path.exists(best_path):
+        size_mb = os.path.getsize(best_path) / (1024 * 1024)
+        options[f"⭐ Stage 2 Best (best_model.pt - {size_mb:.0f}MB) [RECOMMENDED]"] = best_path
 
-    # Load vocabulary
-    with open(VOCAB_PATH, encoding="utf-8") as f:
-        vocab = json.load(f)
-    _char2idx = vocab["char2idx"]
-    _idx2char = {int(k): v for k, v in vocab["idx2char"].items()}
+    # 2. Latest Epoch Checkpoints (e.g. checkpoint_epoch_21.pt)
+    if os.path.isdir(ckpt_dir):
+        epoch_files = [f for f in os.listdir(ckpt_dir) if f.startswith("checkpoint_epoch_") and f.endswith(".pt")]
+        def _get_epoch_num(fn):
+            try:
+                return int(fn.replace("checkpoint_epoch_", "").replace(".pt", ""))
+            except Exception:
+                return -1
+        epoch_files.sort(key=_get_epoch_num, reverse=True)
+        for ef in epoch_files[:3]:  # Top 3 latest
+            p = os.path.join(ckpt_dir, ef)
+            size_mb = os.path.getsize(p) / (1024 * 1024)
+            options[f"🔄 Latest Epoch ({ef} - {size_mb:.0f}MB)"] = p
+
+    # 3. RL Models
+    rl_final = os.path.join(ckpt_dir, "banghtr_x_v2_rl_final.pt")
+    if os.path.exists(rl_final):
+        size_mb = os.path.getsize(rl_final) / (1024 * 1024)
+        options[f"🎮 Stage 3 RL Final (banghtr_x_v2_rl_final.pt - {size_mb:.0f}MB)"] = rl_final
+
+    rl_best = os.path.join(ckpt_dir, "banghtr_x_v2_rl_best.pt")
+    if os.path.exists(rl_best):
+        size_mb = os.path.getsize(rl_best) / (1024 * 1024)
+        options[f"🎮 Stage 3 RL Best (banghtr_x_v2_rl_best.pt - {size_mb:.0f}MB)"] = rl_best
+
+    # 4. Production Export
+    if os.path.exists(WEIGHTS_PATH):
+        size_mb = os.path.getsize(WEIGHTS_PATH) / (1024 * 1024)
+        options[f"📦 Production Export (banghtr_x_v2_weights.pt - {size_mb:.0f}MB)"] = WEIGHTS_PATH
+
+    return options
+
+
+def load_checkpoint(target_path: str = None, force_reload: bool = False):
+    """
+    Loads or switches the active model checkpoint.
+    If target_path is None, chooses the highest-priority available checkpoint.
+    """
+    global _model, _char2idx, _idx2char, _device, _transform, _loaded_checkpoint, _checkpoint_metadata
+
+    # Resolve target checkpoint path
+    if target_path is None:
+        for p in CHECKPOINT_PRIORITY:
+            if os.path.exists(p):
+                target_path = p
+                break
+
+    if target_path is None or not os.path.exists(target_path):
+        raise FileNotFoundError("No valid model checkpoint found in checkpoints/ or exports/.")
+
+    # Return if already loaded
+    if _model is not None and _loaded_checkpoint == target_path and not force_reload:
+        return _model
+
+    # Load vocab if needed
+    if _char2idx is None or _idx2char is None:
+        with open(VOCAB_PATH, encoding="utf-8") as f:
+            vocab = json.load(f)
+        _char2idx = vocab["char2idx"]
+        _idx2char = {int(k): v for k, v in vocab["idx2char"].items()}
 
     num_classes = len(_char2idx)
 
-    # Device
-    _device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # Initialize device
+    if _device is None:
+        _device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # Build model (v3 architecture — also loads v2 checkpoints via strict=False)
-    _model = BANGHTR_X_V2(
-        num_classes=num_classes,
-        in_channels=1,
-        hidden_dim=384,
-        encoder_layers=6,
-        decoder_layers=4,
-        num_heads=8,
-        dim_feedforward=1536,
-        use_matra_attn=True,
-        use_grapheme_moe=True,
-        moe_aux_weight=0.01,
-        stem_feat_dim=384,
-        decoder_type="hybrid",
-    ).to(_device)
+    # Initialize model if needed
+    if _model is None:
+        _model = BANGHTR_X_V2(
+            num_classes=num_classes,
+            in_channels=1,
+            hidden_dim=384,
+            encoder_layers=6,
+            decoder_layers=4,
+            num_heads=8,
+            dim_feedforward=1536,
+            use_matra_attn=True,
+            use_grapheme_moe=True,
+            moe_aux_weight=0.01,
+            stem_feat_dim=384,
+            decoder_type="hybrid",
+        ).to(_device)
 
-    # Load best available weights (RL-best > Stage2-best > production export)
-    weights_loaded = None
-    for ckpt_path in CHECKPOINT_PRIORITY:
-        if os.path.exists(ckpt_path):
-            state = torch.load(ckpt_path, map_location="cpu")
-            # Handle both raw state_dict and checkpoint dict
-            if isinstance(state, dict) and "model_state_dict" in state:
-                state = state["model_state_dict"]
-            try:
-                # strict=False: allows loading v2 weights into v3 arch (new layers
-                # will use random init but existing weights are transferred correctly)
-                missing, unexpected = _model.load_state_dict(state, strict=False)
-                weights_loaded = ckpt_path
-                if missing:
-                    print(f"[BANGHTR-X] Note: {len(missing)} new v3 layers initialized randomly")
-                break
-            except Exception as e:
-                print(f"[BANGHTR-X] Warning: Could not load {ckpt_path}: {e}")
-                continue
+    # Load weights
+    print(f"[BANGHTR-X] Loading weights from: {target_path}...")
+    state = torch.load(target_path, map_location="cpu")
+    _checkpoint_metadata = {}
 
-    if weights_loaded is None:
-        raise FileNotFoundError(
-            "No valid model checkpoint found. Train the model first by running the notebook."
-        )
+    if isinstance(state, dict) and "model_state_dict" in state:
+        _checkpoint_metadata = {
+            "epoch": state.get("epoch"),
+            "val_cer": state.get("metrics", {}).get("val_cer"),
+            "val_wer": state.get("metrics", {}).get("val_wer"),
+            "val_loss": state.get("metrics", {}).get("val_loss"),
+        }
+        state = state["model_state_dict"]
 
+    missing, unexpected = _model.load_state_dict(state, strict=False)
+    _loaded_checkpoint = target_path
     _model.eval()
 
-    # Image transform (no augmentation for inference)
-    _transform = AugmentedAspectRatioPadResize(
-        target_height=64, max_width=1024, augment=False
-    )
+    if _transform is None:
+        _transform = AugmentedAspectRatioPadResize(
+            target_height=64, max_width=1024, augment=False
+        )
 
-    src = os.path.basename(weights_loaded)
-    print(f"[BANGHTR-X] Model loaded on {_device} | vocab size: {num_classes} | weights: {src}")
+    base = os.path.basename(target_path)
+    meta_str = ""
+    if _checkpoint_metadata.get("epoch"):
+        meta_str = f" | Epoch: {_checkpoint_metadata['epoch']}"
+    if _checkpoint_metadata.get("val_cer") is not None:
+        meta_str += f" | Val CER: {_checkpoint_metadata['val_cer']*100:.2f}%"
+
+    print(f"[BANGHTR-X] Active model: {base}{meta_str} on {_device}")
+    return _model
+
+
+def _load_model():
+    """Backward-compatible loader."""
+    load_checkpoint()
+
+
+def get_model_status() -> dict:
+    """Returns metadata about the currently active model."""
+    load_checkpoint()
+    base = os.path.basename(_loaded_checkpoint or "None")
+    params = sum(p.numel() for p in _model.parameters())
+    return {
+        "checkpoint": base,
+        "checkpoint_path": _loaded_checkpoint,
+        "device": str(_device),
+        "params": f"{params / 1e6:.1f}M",
+        "epoch": _checkpoint_metadata.get("epoch"),
+        "val_cer": _checkpoint_metadata.get("val_cer"),
+        "val_wer": _checkpoint_metadata.get("val_wer"),
+    }
 
 
 # ── Decoding helpers ──────────────────────────────────────────────────────────
@@ -179,18 +267,23 @@ def _decode_tokens(token_ids: list[int]) -> str:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def predict(image: Image.Image, beam_width: int = 5) -> dict:
+def predict(image: Image.Image, beam_width: int = 5, checkpoint_path: str = None) -> dict:
     """
-    Run BANGHTR-X inference on a PIL image.
+    Run BANGHTR-X inference on an image.
 
     Args:
-        image: PIL Image (any mode, will be converted to grayscale)
-        beam_width: Beam search width for CTC (1 = greedy, 5 = recommended)
+        image: PIL Image, numpy array, or file path string.
+        beam_width: Beam search width for CTC (1 = greedy, 5 = recommended).
+        checkpoint_path: Optional path to a specific model checkpoint to use.
 
     Returns:
-        dict with keys: 'ctc_text', 'attn_text', 'best_text'
+        dict with keys: 'best_text', 'ctc_text', 'ctc_greedy_text', 'attn_text', 'checkpoint_name', 'model_status'
     """
-    _load_model()
+    # Load or switch checkpoint if requested
+    if checkpoint_path is not None and checkpoint_path != _loaded_checkpoint:
+        load_checkpoint(checkpoint_path)
+    else:
+        load_checkpoint()
 
     # Accept string path, numpy array, or PIL Image
     if isinstance(image, str):
@@ -207,23 +300,36 @@ def predict(image: Image.Image, beam_width: int = 5) -> dict:
         outputs = _model(tensor)
         ctc_lp  = outputs["ctc_log_probs"]   # [T, 1, C]
 
-        # CTC Beam Search (better than greedy)
-        if beam_width > 1:
-            ctc_tok = _ctc_prefix_beam_search(ctc_lp, beam_width=beam_width)
-        else:
-            ctc_tok = _ctc_decode_greedy(ctc_lp)
-        ctc_text = _decode_tokens(ctc_tok)
+        # 1. CTC Greedy
+        ctc_greedy_tok = _ctc_decode_greedy(ctc_lp)
+        ctc_greedy_text = _decode_tokens(ctc_greedy_tok)
 
-        # Attention greedy (autoregressive — works better with more training)
+        # 2. CTC Beam Search
+        if beam_width > 1:
+            ctc_beam_tok = _ctc_prefix_beam_search(ctc_lp, beam_width=beam_width)
+            ctc_beam_text = _decode_tokens(ctc_beam_tok)
+        else:
+            ctc_beam_text = ctc_greedy_text
+
+        # 3. Attention Greedy Autoregressive
         try:
             attn_tok = _model.decode_attention(tensor, method="greedy", max_len=85)[0]
             attn_text = _decode_tokens(attn_tok)
         except Exception as e:
             attn_text = f"(Attention decode error: {e})"
 
+    ckpt_base = os.path.basename(_loaded_checkpoint or "unknown")
+    meta_extra = ""
+    if _checkpoint_metadata.get("val_cer") is not None:
+        meta_extra = f" (Val CER: {_checkpoint_metadata['val_cer']*100:.2f}%)"
+
     return {
-        "ctc_text":  ctc_text,
-        "attn_text": attn_text,
-        # Use CTC Beam Search as the primary output
-        "best_text": ctc_text,
+        "best_text": ctc_beam_text or ctc_greedy_text or "(empty)",
+        "ctc_text": ctc_beam_text or "(empty)",
+        "ctc_greedy_text": ctc_greedy_text or "(empty)",
+        "attn_text": attn_text or "(empty)",
+        "checkpoint_name": f"{ckpt_base}{meta_extra}",
+        "device": str(_device),
+        "beam_width": beam_width,
     }
+
