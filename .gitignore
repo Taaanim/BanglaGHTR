@@ -13,6 +13,9 @@ bin/
 logs/
 visualizations/
 ziZDrlgA
+Archive.zip
+*.zip
+
 
 # Large model weight checkpoints (>100MB)
 checkpoints/
