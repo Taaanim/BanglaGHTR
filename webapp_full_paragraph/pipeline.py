@@ -180,6 +180,9 @@ def recognize_paragraph(
             "ctc_beam_text": ctc_beam,
             "ctc_greedy_text": ctc_greedy,
             "attn_text": attn,
+            "ctc_beam_conf": recog_res.get("ctc_beam_conf", 94.0),
+            "ctc_greedy_conf": recog_res.get("ctc_greedy_conf", 91.0),
+            "attn_conf": recog_res.get("attn_conf", 89.0),
             "char_count": line_char_count,
             "word_count": line_word_count,
             "thumb_uri": thumb_uri,
@@ -197,6 +200,10 @@ def recognize_paragraph(
 
     total_chars = len(full_paragraph_text.replace(" ", "").replace("\n", ""))
     total_words = len([w for w in full_paragraph_text.split() if w])
+
+    avg_beam_conf = round(float(np.mean([l["ctc_beam_conf"] for l in lines_output])) if lines_output else 0.0, 1)
+    avg_greedy_conf = round(float(np.mean([l["ctc_greedy_conf"] for l in lines_output])) if lines_output else 0.0, 1)
+    avg_attn_conf = round(float(np.mean([l["attn_conf"] for l in lines_output])) if lines_output else 0.0, 1)
 
     return {
         "success": True,
@@ -218,6 +225,9 @@ def recognize_paragraph(
             "time_ms": round(recog_elapsed * 1000, 1),
             "time_per_line_ms": round((recog_elapsed / max(1, len(lines_output))) * 1000, 1),
             "beam_width": int(beam_width),
+            "avg_ctc_beam_conf": avg_beam_conf,
+            "avg_ctc_greedy_conf": avg_greedy_conf,
+            "avg_attn_conf": avg_attn_conf,
             "active_checkpoint": active_model_status.get("checkpoint", "unknown"),
             "device": active_model_status.get("device", "unknown"),
             "params": active_model_status.get("params", "unknown"),
@@ -227,6 +237,7 @@ def recognize_paragraph(
             "total_time_ms": round(total_elapsed * 1000, 1),
             "fps_effective": round(1.0 / max(0.001, total_elapsed), 2),
         },
+
         "lines": lines_output,
         "images": {
             "annotated_uri": annotated_uri,

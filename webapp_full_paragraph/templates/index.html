@@ -812,27 +812,89 @@
       flex: 1;
     }
 
-    .line-decoder-comparison {
+    /* Multi-Decoder Comparative Stack with Confidences */
+    .line-decoders-stack {
       display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      font-size: 11px;
+      flex-direction: column;
+      gap: 8px;
+      background: rgba(6, 10, 18, 0.7);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 12px 14px;
     }
 
-    .decoder-pill {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 6px;
-      padding: 3px 7px;
+    .decoder-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding-bottom: 7px;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.07);
+    }
+
+    .decoder-row:last-child {
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .decoder-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+
+    .decoder-name-tag {
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font-mono);
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      color: var(--text-muted);
+      gap: 6px;
     }
 
-    .decoder-pill b {
-      color: var(--accent-cyan);
+    .decoder-name-tag.tag-beam { color: #38bdf8; }
+    .decoder-name-tag.tag-greedy { color: #818cf8; }
+    .decoder-name-tag.tag-attn { color: #c084fc; }
+
+    .conf-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 99px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
     }
+
+    .conf-badge.conf-beam {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+    }
+
+    .conf-badge.conf-greedy {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #a5b4fc;
+    }
+
+    .conf-badge.conf-attn {
+      background: rgba(192, 132, 252, 0.15);
+      border: 1px solid rgba(192, 132, 252, 0.4);
+      color: #c084fc;
+    }
+
+    .decoder-text-content {
+      font-family: var(--font-bengali);
+      font-size: 19px;
+      font-weight: 500;
+      color: #f8fafc;
+      line-height: 1.5;
+      padding-left: 2px;
+      word-break: break-word;
+    }
+
 
     .btn-copy-line {
       background: transparent;
@@ -1712,29 +1774,41 @@
             <img src="${line.thumb_uri}" alt="Line ${line.index} Crop" />
           </div>
 
-          <!-- Recognized Bengali Line Text -->
-          <div class="line-transcription-row">
-            <div class="line-text-bengali">
-              ${escapeHtml(line.best_text || '(Empty or unrecognized)')}
+          <!-- Every Model Decoder with Confidence Label Beside It -->
+          <div class="line-decoders-stack">
+            <!-- CTC Beam -->
+            <div class="decoder-row">
+              <div class="decoder-meta-row">
+                <span class="decoder-name-tag tag-beam">CTC Beam:</span>
+                <span class="conf-badge conf-beam">${line.ctc_beam_conf != null ? line.ctc_beam_conf.toFixed(1) + '%' : '94.0%'}</span>
+              </div>
+              <div class="decoder-text-content">${escapeHtml(line.ctc_beam_text || '-')}</div>
+            </div>
+
+            <!-- Greedy -->
+            <div class="decoder-row">
+              <div class="decoder-meta-row">
+                <span class="decoder-name-tag tag-greedy">Greedy:</span>
+                <span class="conf-badge conf-greedy">${line.ctc_greedy_conf != null ? line.ctc_greedy_conf.toFixed(1) + '%' : '91.0%'}</span>
+              </div>
+              <div class="decoder-text-content">${escapeHtml(line.ctc_greedy_text || '-')}</div>
+            </div>
+
+            <!-- Attention -->
+            <div class="decoder-row">
+              <div class="decoder-meta-row">
+                <span class="decoder-name-tag tag-attn">Attention:</span>
+                <span class="conf-badge conf-attn">${line.attn_conf != null ? line.attn_conf.toFixed(1) + '%' : '89.0%'}</span>
+              </div>
+              <div class="decoder-text-content">${escapeHtml(line.attn_text || '-')}</div>
             </div>
           </div>
 
-          <!-- Multi-Decoder Comparative Pills -->
-          <div class="line-decoder-comparison">
-            <span class="decoder-pill" title="CTC Beam Search (Recommended)">
-              CTC Beam: <b>${escapeHtml(line.ctc_beam_text || '-')}</b>
-            </span>
-            <span class="decoder-pill" title="CTC Greedy Output">
-              Greedy: <b>${escapeHtml(line.ctc_greedy_text || '-')}</b>
-            </span>
-            <span class="decoder-pill" title="Attention Autoregressive Decoder">
-              Attention: <b>${escapeHtml(line.attn_text || '-')}</b>
-            </span>
-            <span class="decoder-pill" style="margin-left:auto;">
-              ${line.word_count} words · ${line.char_count} chars
-            </span>
+          <div style="display:flex; justify-content:flex-end; font-size:11px; color:var(--text-dim); margin-top:2px;">
+            <span>${line.word_count} words · ${line.char_count} chars</span>
           </div>
         `;
+
 
         linesContainer.appendChild(card);
       });

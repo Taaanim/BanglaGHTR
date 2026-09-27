@@ -268,8 +268,9 @@ class BANGHTR_X_V2(nn.Module):
         images: torch.Tensor,
         method: str = "greedy",
         beam_width: int = 5,
-        max_len: int = 150
-    ) -> List[List[int]]:
+        max_len: int = 150,
+        return_scores: bool = False,
+    ):
         """
         Attention-based decoding.
 
@@ -277,8 +278,9 @@ class BANGHTR_X_V2(nn.Module):
             images: [B, 1, H, W]
             method: "greedy" or "beam"
             beam_width: beam size (only for beam search)
+            return_scores: if True, returns (token_lists, confidence_scores)
         Returns:
-            List of token index lists
+            List of token index lists, or (token_lists, scores)
         """
         encoder_out = self.encode(images)
 
@@ -288,8 +290,9 @@ class BANGHTR_X_V2(nn.Module):
             )
         else:
             return self.attn_decoder.greedy_decode(
-                encoder_out, max_len=max_len
+                encoder_out, max_len=max_len, return_scores=return_scores
             )
+
 
     def load_pretrained_stem(self, checkpoint_path: str, strict: bool = False):
         """

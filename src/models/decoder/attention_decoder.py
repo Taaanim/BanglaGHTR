@@ -179,16 +179,18 @@ class AttentionDecoder(nn.Module):
         self,
         encoder_out: torch.Tensor,
         max_len: int = 150,
-        memory_key_padding_mask: torch.Tensor = None
-    ) -> List[List[int]]:
+        memory_key_padding_mask: torch.Tensor = None,
+        return_scores: bool = False,
+    ):
         """
         Autoregressive greedy decoding.
 
         Args:
             encoder_out: [B, T_enc, D]
             max_len: maximum output sequence length
+            return_scores: if True, returns (results, list_of_confidence_scores)
         Returns:
-            List of decoded token index lists for each batch sample
+            List of decoded token index lists for each batch sample, or (results, scores) if return_scores=True
         """
         B = encoder_out.size(0)
         device = encoder_out.device
@@ -196,6 +198,7 @@ class AttentionDecoder(nn.Module):
         # Start with BOS token
         ys = torch.full((B, 1), self.bos_idx, dtype=torch.long, device=device)
         finished = torch.zeros(B, dtype=torch.bool, device=device)
+        token_probs_list = [[] for _ in range(B)]
 
         for _ in range(max_len):
             tgt = self.token_embedding(ys) * self.embed_scale
@@ -208,7 +211,13 @@ class AttentionDecoder(nn.Module):
 
             tgt = self.final_norm(tgt)
             logits = self.output_proj(tgt[:, -1, :])  # [B, num_classes]
+            probs = logits.softmax(dim=-1)
             next_token = logits.argmax(dim=-1)  # [B]
+
+            if return_scores:
+                for b_i in range(B):
+                    if not finished[b_i]:
+                        token_probs_list[b_i].append(float(probs[b_i, next_token[b_i]].item()))
 
             # Check for EOS
             finished = finished | (next_token == self.eos_idx)
@@ -233,7 +242,14 @@ class AttentionDecoder(nn.Module):
                 tokens.append(tok)
             results.append(tokens)
 
+        if return_scores:
+            scores = []
+            for p_list in token_probs_list:
+                scores.append(float(np.mean(p_list)) if p_list else 0.0)
+            return results, scores
+
         return results
+
 
     def sample_decode(
         self,
