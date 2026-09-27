@@ -12,6 +12,7 @@ archive/
 bin/
 logs/
 visualizations/
+ziZDrlgA
 
 # Large model weight checkpoints (>100MB)
 checkpoints/
@@ -19,6 +20,10 @@ checkpoints/
 *.pth
 *.bin
 
+# Allow lightweight production model weights (<100MB) for portable out-of-the-box execution
+!exports/banghtr_x_v2_production/banghtr_x_v2_weights.pt
+
 # Exclude large word and char manifests to keep repo lightweight
 datasets/manifests/dataset_1_words.csv
 datasets/manifests/dataset_2_chars.csv
+

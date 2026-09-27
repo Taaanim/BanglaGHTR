@@ -155,7 +155,14 @@ def load_checkpoint(target_path: str = None, force_reload: bool = False):
         }
         state = state["model_state_dict"]
 
+    if isinstance(state, dict):
+        state = {
+            k: (v.float() if isinstance(v, torch.Tensor) and v.is_floating_point() else v)
+            for k, v in state.items()
+        }
+
     missing, unexpected = _model.load_state_dict(state, strict=False)
+
     _loaded_checkpoint = target_path
     _model.eval()
 
