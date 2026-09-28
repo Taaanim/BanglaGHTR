@@ -8,7 +8,7 @@ An end-to-end deep learning system for recognizing Bengali handwritten text — 
 
 ## Full Paragraph Recognition Pipeline
 
-The primary contribution of this project is a **full paragraph recognition system** that takes an unconstrained handwritten Bengali paragraph image and returns the complete transcribed text. No manual line segmentation is required.
+The primary deliverable of this project is a **full paragraph recognition system** that takes an unconstrained handwritten Bengali paragraph image and returns the complete transcribed text. No manual line segmentation is required.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -255,7 +255,7 @@ python scripts/verify_pipeline.py
 ```bash
 cd webapp_full_paragraph
 python app.py
-# Open http://localhost:5000
+# Open http://localhost:7860 (or http://localhost:7861)
 ```
 
 ### 4. Run the single-line demo
@@ -278,9 +278,20 @@ python app.py
 
 ---
 
-## Datasets
+## Datasets & Benchmark Setup
 
-| Dataset | Task | Size |
-|---------|------|------|
-| BN-HTRd | Line-level HTR (document-independent split) | 14,383 lines, 150 documents |
-| Ekush | Isolated character classification (writer-independent split) | 367,018 images, 5,023 writers |
+The framework is trained and evaluated across two benchmark datasets, with quality curation applied to both:
+
+| Dataset | Task Level | Volume | Quality Curation | Split Strategy |
+|---------|------------|--------|------------------|----------------|
+| **BN-HTRd** | Line-level sequence recognition | 150 documents (~14K lines) | Manual quality audit, anomaly filtering, Unicode NFC standardization | Document-independent |
+| **Ekush** | Character-level pretraining | 367,018 glyphs (122 classes) | Class balance verification, writer grouping | Writer-independent (5,023 writers) |
+
+### Dataset Quality & Preprocessing
+- **Manual Data Cleansing:** Raw annotations were manually audited to remove corrupted/unannotated lines and cross-script label contamination.
+- **Unicode Normalization:** Transcriptions were standardized using Unicode NFC normalization, eliminating invisible formatting artifacts (`\u200b`, `\ufeff`).
+- **Leakage Prevention:** Maintained strict document-independent (BN-HTRd) and writer-independent (Ekush) partitions across training, validation, and test splits.
+
+
+
+

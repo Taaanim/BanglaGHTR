@@ -40,6 +40,7 @@ bin/
 
 # ── Project Documentation (private research notes) ───────────
 doc/project_docs/
+*RESEARCH_PAPER_DOCUMENTATION*.md
 
 # ── Compressed Archives ───────────────────────────────────────
 *.zip

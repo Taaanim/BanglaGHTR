@@ -8,21 +8,26 @@ A document-level offline handwritten Bengali text recognition (HTR) research pla
 
 ## 🚀 Quick Start
 
-From the project root:
+Run the following commands from the project root:
 
 ```bash
-cd /home/suza/HandWritenDetection/BanglaGHTR
-.venv/bin/python webapp_full_paragraph/app.py
+# 1. Set up and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# 2. Install requirements
+pip install -r requirements.txt
+
+# 3. Launch the paragraph web application
+python webapp_full_paragraph/app.py
 ```
 
 Then open your browser at:
-👉 **[http://localhost:7861](http://localhost:7861)**
+👉 **[http://localhost:7860](http://localhost:7860)** *(or **http://localhost:7861** if port 7860 is occupied)*
 
-*(Note: Port 7861 is used by default so it does not conflict with the existing single-line web app on port 7860 or Flask on 5050).*
-
-To change the port or host:
+To specify a custom port or host:
 ```bash
-PORT=8080 HOST=0.0.0.0 .venv/bin/python webapp_full_paragraph/app.py
+PORT=8080 HOST=0.0.0.0 python webapp_full_paragraph/app.py
 ```
 
 ---
@@ -120,7 +125,7 @@ Runs only OpenCV line segmentation without neural inference (fast preview).
 ### 3. `POST /api/switch_checkpoint`
 Switches the active model checkpoint in memory:
 ```json
-{ "checkpoint_path": "/home/suza/HandWritenDetection/BanglaGHTR/checkpoints/best_model.pt" }
+{ "checkpoint_path": "exports/banghtr_x_v2_production/banghtr_x_v2_weights.pt" }
 ```
 
 ### 4. `GET /api/status`
