@@ -16,33 +16,33 @@ The primary contribution of this project is a **full paragraph recognition syste
 │                                                                             │
 │  Input: Handwritten Bengali Paragraph Image (any size)                      │
 │                              │                                              │
-│                ┌─────────────▼─────────────┐                               │
+│                ┌─────────────▼──────────────┐                               │
 │                │   1. PREPROCESSING         │                               │
 │                │   Grayscale conversion     │                               │
 │                │   Otsu / Adaptive binarize │                               │
 │                │   Hough-based deskewing    │                               │
-│                └─────────────┬─────────────┘                               │
+│                └─────────────┬──────────────┘                               │
 │                              │                                              │
-│                ┌─────────────▼─────────────┐                               │
+│                ┌─────────────▼──────────────┐                               │
 │                │   2. LINE SEGMENTATION     │                               │
 │                │   Horizontal projection    │                               │
 │                │   profiling (ink density   │                               │
 │                │   per row) → valley        │                               │
 │                │   detection → line boxes   │                               │
-│                └─────────────┬─────────────┘                               │
+│                └─────────────┬──────────────┘                               │
 │                              │  N line images                               │
-│                ┌─────────────▼─────────────┐                               │
+│                ┌─────────────▼──────────────┐                               │
 │                │   3. PER-LINE RECOGNITION  │                               │
 │                │   BanglaGHTR model         │                               │
 │                │   (see architecture below) │                               │
-│                └─────────────┬─────────────┘                               │
+│                └─────────────┬──────────────┘                               │
 │                              │  N (text, confidence) pairs                  │
-│                ┌─────────────▼─────────────┐                               │
+│                ┌─────────────▼──────────────┐                               │
 │                │   4. POST-PROCESSING       │                               │
 │                │   LM-aware ensemble        │                               │
 │                │   selector picks best      │                               │
 │                │   decode per line          │                               │
-│                └─────────────┬─────────────┘                               │
+│                └─────────────┬──────────────┘                               │
 │                              │                                              │
 │  Output: Full paragraph text + per-line confidence analytics                │
 └─────────────────────────────────────────────────────────────────────────────┘
