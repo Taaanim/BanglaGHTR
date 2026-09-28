@@ -250,6 +250,107 @@ class AttentionDecoder(nn.Module):
 
         return results
 
+    @torch.no_grad()
+    def greedy_decode_with_margin(
+        self,
+        encoder_out: torch.Tensor,
+        max_len: int = 150,
+        memory_key_padding_mask: torch.Tensor = None,
+        repetition_penalty: float = 0.40,
+    ):
+        """
+        Greedy autoregressive decoding that returns (tokens, score) where
+        `score` is a calibrated 0–1 confidence based on logit MARGIN
+        (logit(argmax) - logit(second)) and a repetition penalty.
+
+        Why margin instead of softmax-of-argmax?
+        A confident model commits hard to one token (large gap to #2). A
+        confused one has a near-tied runner-up. Softmax-of-argmax can be
+        ~0.7 just from softmax temperature even when the runner-up is
+        almost as likely; margin directly measures commitment.
+
+        Repetition penalty:
+        For each emitted step t, if next_token == previous emitted token,
+        the score for that step is multiplied by (1 - repetition_penalty).
+        This kills the runaway-repeat pathology (e.g. "ককককক") that the
+        original softmax-mean confidence could not detect.
+        """
+        import numpy as np  # local to avoid touching module top-level imports
+
+        B = encoder_out.size(0)
+        device = encoder_out.device
+
+        ys = torch.full((B, 1), self.bos_idx, dtype=torch.long, device=device)
+        finished = torch.zeros(B, dtype=torch.bool, device=device)
+        per_step_margin = [[] for _ in range(B)]
+        emitted_tokens_per_batch = [[] for _ in range(B)]
+
+        for _ in range(max_len):
+            tgt = self.token_embedding(ys) * self.embed_scale
+            tgt = self.pos_embedding(tgt)
+            causal_mask = self._generate_causal_mask(ys.size(1), device)
+
+            for layer in self.layers:
+                tgt = layer(tgt, encoder_out, tgt_mask=causal_mask,
+                            memory_key_padding_mask=memory_key_padding_mask)
+
+            tgt = self.final_norm(tgt)
+            logits = self.output_proj(tgt[:, -1, :])  # [B, num_classes]
+
+            # Top-2 logits → margin (logit scale, in [0, +inf))
+            top2_vals, top2_idx = logits.topk(2, dim=-1)
+            margin = (top2_vals[:, 0] - top2_vals[:, 1]).clamp(min=0.0)
+            # squash margin into [0,1] via 1 - exp(-margin); margin of ~3.0 → 0.95
+            margin_conf = 1.0 - torch.exp(-margin)
+            next_token = top2_idx[:, 0]
+
+            for b_i in range(B):
+                if finished[b_i]:
+                    continue
+                step_score = float(margin_conf[b_i].item())
+                # Repetition penalty
+                if (
+                    emitted_tokens_per_batch[b_i]
+                    and emitted_tokens_per_batch[b_i][-1] == int(next_token[b_i].item())
+                ):
+                    step_score *= (1.0 - repetition_penalty)
+                per_step_margin[b_i].append(step_score)
+                emitted_tokens_per_batch[b_i].append(int(next_token[b_i].item()))
+
+            finished = finished | (next_token == self.eos_idx)
+            next_token = next_token.masked_fill(finished, self.pad_idx)
+            ys = torch.cat([ys, next_token.unsqueeze(1)], dim=1)
+
+            if finished.all():
+                break
+
+        # Convert to token lists (strip BOS/EOS/PAD)
+        results = []
+        for seq in ys:
+            tokens = []
+            for tok in seq.tolist():
+                if tok == self.bos_idx:
+                    continue
+                if tok == self.eos_idx:
+                    break
+                if tok == self.pad_idx:
+                    continue
+                tokens.append(tok)
+            results.append(tokens)
+
+        scores = []
+        for margin_list in per_step_margin:
+            if not margin_list:
+                scores.append(0.0)
+            else:
+                # Geometric mean is much harsher on any single weak step
+                # than arithmetic mean — appropriate for confidence.
+                m = np.array(margin_list, dtype=np.float64)
+                # avoid log(0)
+                m = np.clip(m, 1e-6, 1.0)
+                scores.append(float(np.exp(np.mean(np.log(m)))))
+        return results, scores
+
 
     def sample_decode(
         self,

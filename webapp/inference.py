@@ -18,6 +18,8 @@ if PROJECT_ROOT not in sys.path:
 
 from src.models.banghtr_x import BANGHTR_X_V2
 from src.data.transforms import AugmentedAspectRatioPadResize
+# ── Post-processing selector (LM-aware meta-ensemble) ─────────────────────────
+from src.postprocess import select_best_prediction as _select_best
 
 # ── Paths (relative to project root) ─────────────────────────────────────────
 WEIGHTS_PATH = os.path.join(PROJECT_ROOT, "exports", "banghtr_x_v2_production", "banghtr_x_v2_weights.pt")
@@ -143,7 +145,7 @@ def load_checkpoint(target_path: str = None, force_reload: bool = False):
 
     # Load weights
     print(f"[BANGHTR-X] Loading weights from: {target_path}...")
-    state = torch.load(target_path, map_location="cpu")
+    state = torch.load(target_path, map_location="cpu", weights_only=False)
     _checkpoint_metadata = {}
 
     if isinstance(state, dict) and "model_state_dict" in state:
@@ -205,31 +207,94 @@ def get_model_status() -> dict:
 
 # ── Decoding helpers ──────────────────────────────────────────────────────────
 
-def _ctc_decode_greedy_with_conf(log_probs: torch.Tensor) -> tuple[list[int], float]:
-    """Greedy CTC: argmax → collapse repeats → remove blank(0), returning (tokens, conf_percent)."""
-    probs = log_probs.squeeze(1).exp()  # [T, C]
-    max_probs, tokens = probs.max(dim=-1)
-    tokens_list = tokens.tolist()
-    max_probs_list = max_probs.tolist()
-
-    result = []
-    char_confs = []
-    prev = None
-
-    for t, p in zip(tokens_list, max_probs_list):
-        if t != prev:
-            if t != 0:  # 0 = BLANK
-                result.append(t)
-                char_confs.append(p)
-        prev = t
-
-    conf = (float(np.mean(char_confs)) * 100.0) if char_confs else 0.0
-    return result, conf
-
-
-def _ctc_prefix_beam_search_with_conf(log_probs: torch.Tensor, beam_width: int = 5) -> tuple[list[int], float]:
+def _ctc_char_quality(probs_row):
     """
-    Pure-Python CTC prefix beam search returning (best_token_ids, conf_percent).
+    Per-frame CTC character-quality metrics.
+      q : max softmax probability for the emitted token (peak certainty).
+      g : (top1 - top2) / top1  in [0, 1] - 1 = decisive, 0 = tied with #2.
+      b : softmax probability of the BLANK token (silence/ambiguity at frame).
+    """
+    top2 = np.partition(probs_row, -2)[-2:]
+    top1 = float(top2[1])
+    top2v = float(top2[0])
+    q = top1
+    g = (top1 - top2v) / (top1 + 1e-9)
+    b = float(probs_row[0])  # BLANK = index 0
+    return q, max(g, 0.0), b
+
+
+def _ctc_combine_conf(char_qmax, char_gmargin, char_pblank):
+    """
+    Aggregate per-character qualities into a single 0..1 confidence.
+    Three factors (all in [0, 1] before combination):
+        mean(q_k)              length-normalized per-token peak certainty
+                               (log-mean, then exp). Stable across line lengths.
+        geomean(g_k)           geometric mean of top-2 margins (rewards decisive
+                               commitments).
+        mean(1 - b_k)          frames that emit characters (not blank) carry
+                               more information - down-weights noisy lines.
+    Output is in [0, 1] x 100.
+    """
+    if not char_qmax:
+        return 0.0
+    eps = 1e-6
+    n = len(char_qmax)
+    log_q_norm = float(np.sum(np.log(np.clip(char_qmax, eps, 1.0)))) / n
+    log_g = float(np.mean(np.log(np.clip(char_gmargin, eps, 1.0))))
+    conf = float(np.exp(log_q_norm)) * float(np.exp(log_g)) * (1.0 - float(np.mean(char_pblank)))
+    return float(np.clip(conf, 0.0, 1.0)) * 100.0
+
+
+def _ctc_decode_greedy_with_conf(log_probs):
+    """
+    Greedy CTC: argmax -> collapse repeats -> remove blank(0).
+
+    Confidence is calibrated on per-frame posteriors at the FRAME THAT EMITS
+    EACH CHARACTER (first non-blank, non-repeat frame of a run). See
+    _ctc_combine_conf. The OLD implementation was the mean of per-frame
+    argmax probs, which always saturated at 85-99% regardless of whether
+    the text was correct.
+    """
+    probs = log_probs.squeeze(1).exp().cpu().numpy()  # [T, C]
+    T, C = probs.shape
+    BLANK = 0
+    tokens = probs.argmax(axis=-1)
+
+    emitted_tokens = []
+    char_qmax = []
+    char_gmargin = []
+    char_pblank = []
+
+    prev = None
+    for t in range(T):
+        tok = int(tokens[t])
+        if tok == BLANK:
+            prev = None
+            continue
+        if tok == prev:
+            continue
+        q, g, b = _ctc_char_quality(probs[t])
+        emitted_tokens.append(tok)
+        char_qmax.append(q)
+        char_gmargin.append(g)
+        char_pblank.append(b)
+        prev = tok
+
+    conf = _ctc_combine_conf(char_qmax, char_gmargin, char_pblank)
+    return emitted_tokens, conf
+
+
+def _ctc_prefix_beam_search_with_conf(log_probs, beam_width=5):
+    """
+    Pure-Python CTC prefix beam search with a CALIBRATED confidence.
+
+    The prefix-beam path score (Pb + Pnb) is an un-calibrated cumulative
+    product over hundreds of frames and is NOT used for confidence.
+
+    For confidence we recover per-frame posteriors via greedy alignment of
+    the same log-probs, then aggregate with the same metric as greedy
+    decoding (so beam/greedy/attention are comparable). The beam is only
+    used to pick the SEQUENCE of tokens, not to score it.
     """
     probs = log_probs.squeeze(1).exp().cpu().numpy()  # [T, C]
     T, C = probs.shape
@@ -238,8 +303,8 @@ def _ctc_prefix_beam_search_with_conf(log_probs: torch.Tensor, beam_width: int =
     beam = {(): (1.0, 0.0)}
 
     for t in range(T):
-        p = probs[t]          # [C]
-        new_beam: dict = {}
+        p = probs[t]
+        new_beam = {}
 
         for prefix, (Pb, Pnb) in beam.items():
             new_Pb = (Pb + Pnb) * p[BLANK]
@@ -259,15 +324,35 @@ def _ctc_prefix_beam_search_with_conf(log_probs: torch.Tensor, beam_width: int =
 
     best_prefix = max(beam, key=lambda p: beam[p][0] + beam[p][1])
     tokens = list(best_prefix)
-
     if not tokens:
         return [], 0.0
 
-    char_confs = []
-    for tok in tokens:
-        char_confs.append(float(np.max(probs[:, tok])))
-    conf = float(np.mean(char_confs)) * 100.0 if char_confs else 0.0
+    # Greedy alignment of probs to recover per-frame emissions.
+    aligned = []
+    prev = None
+    for t in range(T):
+        tok = int(probs[t].argmax())
+        if tok == BLANK:
+            prev = None
+            continue
+        if tok == prev:
+            continue
+        aligned.append((t, tok))
+        prev = tok
 
+    char_qmax, char_gmargin, char_pblank = [], [], []
+    for tok in tokens:
+        matched = [t for (t, tk) in aligned if tk == tok]
+        if not matched:
+            tok_col = probs[:, tok]
+            matched = list(np.argsort(tok_col)[-3:][::-1])
+        for t in matched:
+            q, g, b = _ctc_char_quality(probs[t])
+            char_qmax.append(q)
+            char_gmargin.append(g)
+            char_pblank.append(b)
+
+    conf = _ctc_combine_conf(char_qmax, char_gmargin, char_pblank)
     return tokens, conf
 
 
@@ -345,11 +430,22 @@ def predict(image: Image.Image, beam_width: int = 5, checkpoint_path: str = None
             ctc_beam_text = ctc_greedy_text
             ctc_beam_conf = ctc_greedy_conf
 
-        # 3. Attention Greedy Autoregressive with confidence
+        # 3. Attention Greedy Autoregressive with confidence.
+        # The original softmax-of-argmax confidence was unreliable because
+        # it (a) ignored the margin between argmax and runner-up, and
+        # (b) could not detect runaway repetition ("কককক"). We use a
+        # margin-based, repetition-penalized scorer via the new
+        # `greedy_decode_with_margin` method on the attention decoder.
         try:
-            attn_tok, attn_scores = _model.decode_attention(tensor, method="greedy", max_len=85, return_scores=True)
-            attn_tok = attn_tok[0]
-            attn_conf = (float(attn_scores[0]) * 100.0) if attn_scores else 0.0
+            with torch.no_grad():
+                encoder_out = _model.encode(tensor)
+                attn_results, attn_scores = _model.attn_decoder.greedy_decode_with_margin(
+                    encoder_out,
+                    max_len=85,
+                    repetition_penalty=0.40,
+                )
+            attn_tok = attn_results[0]
+            attn_conf = float(attn_scores[0]) * 100.0 if attn_scores else 0.0
             attn_text = _decode_tokens(attn_tok)
         except Exception:
             try:
@@ -360,22 +456,54 @@ def predict(image: Image.Image, beam_width: int = 5, checkpoint_path: str = None
                 attn_text = f"(Attention decode error: {e2})"
                 attn_conf = 0.0
 
+    # 4. Best-text selection via LM-aware meta-ensemble ----------------------
+    # Delegates to src/postprocess/selector.py which implements:
+    #   Combined_Score = w_model * model_conf
+    #                  + w_lm    * lm_score      (Bangla bigram LM / KenLM)
+    #                  + w_agree * agreement_bonus
+    #                  - repetition / length / hallucination penalties
+    #
+    # The selector is initialised once with this model's vocab so the LM
+    # is aware of the in-distribution character set.
+    selection = _select_best(
+        candidates={
+            "ctc_beam":   {"text": ctc_beam_text,   "confidence": ctc_beam_conf},
+            "ctc_greedy": {"text": ctc_greedy_text, "confidence": ctc_greedy_conf},
+            "attn":       {"text": attn_text,        "confidence": attn_conf},
+        },
+        vocab_json_path=VOCAB_PATH,
+    )
+
+    best_text   = selection["best_text"]
+    best_name   = selection["best_source"]
+    best_score  = selection["best_score"]
+    combined    = selection["combined_scores"]
+
     ckpt_base = os.path.basename(_loaded_checkpoint or "unknown")
     meta_extra = ""
     if _checkpoint_metadata.get("val_cer") is not None:
         meta_extra = f" (Val CER: {_checkpoint_metadata['val_cer']*100:.2f}%)"
 
     return {
-        "best_text": ctc_beam_text or ctc_greedy_text or "(empty)",
-        "ctc_text": ctc_beam_text or "(empty)",
-        "ctc_greedy_text": ctc_greedy_text or "(empty)",
-        "attn_text": attn_text or "(empty)",
-        "ctc_beam_conf": round(ctc_beam_conf, 1),
-        "ctc_greedy_conf": round(ctc_greedy_conf, 1),
-        "attn_conf": round(attn_conf, 1),
-        "checkpoint_name": f"{ckpt_base}{meta_extra}",
-        "device": str(_device),
-        "beam_width": beam_width,
+        "best_text":        best_text or "(empty)",
+        "best_source":      best_name,
+        "best_score":       best_score,
+        "selection_reason": selection["selection_reason"],
+        "ctc_text":         ctc_beam_text   or "(empty)",
+        "ctc_greedy_text":  ctc_greedy_text or "(empty)",
+        "attn_text":        attn_text       or "(empty)",
+        # Combined scores shown in UI so the displayed number matches the
+        # actual decision criterion (model_conf + LM + agreement).
+        "ctc_beam_conf":    round(combined.get("ctc_beam",   ctc_beam_conf),   1),
+        "ctc_greedy_conf":  round(combined.get("ctc_greedy", ctc_greedy_conf), 1),
+        "attn_conf":        round(combined.get("attn",       attn_conf),       1),
+        "checkpoint_name":  f"{ckpt_base}{meta_extra}",
+        "device":           str(_device),
+        "beam_width":       beam_width,
+        # Extra diagnostics from the selector
+        "lm_scores":        selection.get("lm_scores", {}),
+        "is_low_conf":      selection.get("is_low_conf", False),
+        "is_degenerate":    selection.get("is_degenerate", {}),
     }
 
 

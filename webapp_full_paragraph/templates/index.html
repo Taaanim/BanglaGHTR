@@ -768,6 +768,20 @@
       font-family: var(--font-mono);
     }
 
+    .line-winner-badge {
+      font-size: 11px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: rgba(34, 197, 94, 0.18);
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      color: #86efac;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
     /* Cropped Line Image Viewer inside Card — Fits cleanly with NO horizontal scroll */
     .line-crop-frame {
       background: #020408;
@@ -1760,9 +1774,10 @@
 
         card.innerHTML = `
           <div class="line-card-header">
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <span class="line-badge">Line #${line.index}</span>
               <span class="line-coords">${box.width}×${box.height} px · y: ${box.top}–${box.bottom}</span>
+              ${line.best_source ? `<span class="line-winner-badge" title="${escapeHtml(line.selection_reason || '')}">★ ${labelFor(line.best_source)}</span>` : ''}
             </div>
             <button type="button" class="btn-copy-line" title="Copy Line Text" onclick="copyLineText('${escapeJsString(line.best_text)}')">
               📋 Copy
@@ -1822,6 +1837,10 @@
 
     function escapeJsString(str) {
       return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, ' ');
+    }
+
+    function labelFor(src) {
+      return ({ctc_beam: 'CTC Beam', ctc_greedy: 'CTC Greedy', attn: 'Attention'})[src] || src;
     }
 
     window.copyLineText = (text) => {
