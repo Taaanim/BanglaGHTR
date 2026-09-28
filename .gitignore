@@ -1,35 +1,48 @@
-# macOS system files
+# ── macOS System Files ────────────────────────────────────────
 .DS_Store
+.AppleDouble
+.LSOverride
 
-# Virtual environment & Python cache
+# ── Python Environment & Cache ────────────────────────────────
 .venv/
 __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 *.pyc
+*.pyo
+*.pyd
+
+# ── Logs & Runtime Output ─────────────────────────────────────
 *.log
-
-# Raw image datasets & temporary archives
-Dataset/
-archive/
-bin/
 logs/
-visualizations/
-ziZDrlgA
-Archive.zip
-*.zip
 
+# ── Raw Datasets (too large for git) ─────────────────────────
+Dataset/
+datasets/manifests/dataset_1_words.csv
+datasets/manifests/dataset_2_chars.csv
 
-# Large model weight checkpoints (>100MB)
+# ── Archive (historical/development files) ───────────────────
+archive/
+
+# ── Model Checkpoints & Binary Weights ───────────────────────
 checkpoints/
 *.pt
 *.pth
 *.bin
 
-# Allow lightweight production model weights (<100MB) for portable out-of-the-box execution
+# Allow lightweight production export weights (<100MB)
 !exports/banghtr_x_v2_production/banghtr_x_v2_weights.pt
 
-# Exclude large word and char manifests to keep repo lightweight
-datasets/manifests/dataset_1_words.csv
-datasets/manifests/dataset_2_chars.csv
+# ── Output & Visualization Directories ───────────────────────
+outputs/
+visualizations/
+bin/
+
+# ── Project Documentation (private research notes) ───────────
+doc/project_docs/
+
+# ── Compressed Archives ───────────────────────────────────────
+*.zip
+Archive.zip
+ziZDrlgA
 

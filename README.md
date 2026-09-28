@@ -1,171 +1,191 @@
-# BanglaGHTR: Bengali Handwritten Text Recognition Research Framework
+# BanglaGHTR
 
-**BanglaGHTR (Bangla Grapheme-based Handwritten Text Recognition)** is an advanced, research-grade handwritten text recognition (HTR) architecture for Bengali document-, line-, and character-level recognition.
+**Bangla Grapheme-based Handwritten Text Recognition** — a research-grade deep learning system for Bengali handwritten text recognition.
 
 ---
 
-## 1. System Architecture (BanglaGHTR)
+## Overview
 
-```text
-                 HANDWRITTEN LINE / PARAGRAPH
-                               │
-                               ▼
-        ┌──────────────────────────────────────────────┐
-        │          CONVNEXT VISUAL STEM                │
-        │   Depthwise-separable convolutions           │
-        │   Multi-scale feature pyramid                │
-        │   Vertical collapse to sequence [B, T, D]    │
-        └──────────────────────┬───────────────────────┘
-                               │
-                               ▼
-        ┌──────────────────────────────────────────────┐
-        │         MATRA-AWARE ATTENTION MODULE         │
-        │   Models horizontal headline continuity      │
-        │   Headline-guided feature gating             │
-        └──────────────────────┬───────────────────────┘
-                               │
-                               ▼
-        ┌──────────────────────────────────────────────┐
-        │        GRAPHEME MIXTURE OF EXPERTS           │
-        │   Main visual feature stream                 │
-        │   Diacritic expert (Kars & Folas)            │
-        │   Conjunct expert (Yuktakshar)               │
-        │   Dynamic 3-way softmax routing              │
-        └──────────────────────┬───────────────────────┘
-                               │
-                               ▼
-        ┌──────────────────────────────────────────────┐
-        │       BIDIRECTIONAL SEQUENCE ENCODER         │
-        │   BiLSTM contextual representation           │
-        └──────────────────────┬───────────────────────┘
-                               │
-                               ▼
-        ┌──────────────────────────────────────────────┐
-        │                 CTC DECODER                  │
-        │   Log-probability sequence emission          │
-        │   Greedy & Beam Search Decoding              │
-        └──────────────────────┬───────────────────────┘
-                               │
-                               ▼
-                       FINAL BANGLA TEXT
+BanglaGHTR is an end-to-end neural architecture specifically designed for the Bengali script, incorporating three domain-specific modules:
+
+- **Matra-Aware Attention** — structurally-grounded gating using the vertical ink profile of the ConvNeXt stem to detect the Bengali headline (matra)
+- **Grapheme Mixture-of-Experts** — a 3-way expert router with contextual 3-frame convolution, specialized for diacritics, conjuncts (yuktakshar), and general consonants
+- **Hybrid CTC + Attention Decoder** — jointly trained with Self-Critical Sequence Training (SCST) RL refinement for direct CER/WER optimization
+
+The system handles both single text line recognition and full paragraph recognition via an OpenCV-based line segmentation pipeline.
+
+---
+
+## Architecture
+
+```
+Input [B, 1, 64, W]
+        │
+        ▼
+ConvNeXt Visual Stem (4 stages, dual max+avg pooling)
+        │
+        ▼
+Matra-Aware Attention (structurally-gated self-attention)
+        │
+        ▼
+Grapheme MoE Fusion (diacritic + conjunct experts, 3-frame router)
+        │
+        ▼
+Transformer Encoder (6L, d=384, heads=8, ffn=1536)
+        │
+   ┌────┴────┐
+   ▼         ▼
+CTC Head   Attention Decoder (4L causal + cross-attn)
+   │              │
+   └──── Best Prediction Selection ────┘
+              │
+        Bengali Text
 ```
 
+**Total parameters:** ~22.6M
+
 ---
 
-## 2. Directory Structure
+## Repository Structure
 
-```text
+```
 BanglaGHTR/
-├── .venv/                         # Isolated project Python virtual environment
-├── configs/                       # Experiment and stage configuration files
-│   ├── base.yaml                  # Global parameters, paths, seeds, hardware
-│   ├── pretrain_char.yaml         # Stage 1: Isolated 122-class character pretraining
-│   └── htr_line.yaml              # Stage 4: Line-level sequence HTR (BanglaGHTR)
+├── configs/                  # Experiment configuration files
+│   ├── base.yaml             # Global parameters
+│   ├── htr_v2.yaml           # Main HTR config (BanglaGHTR v3)
+│   ├── htr_line.yaml         # Line-level HTR config
+│   └── pretrain_char.yaml    # Character pretraining config
 │
-├── datasets/                      # Manifests and data references
-│   └── manifests/                 # Master verified CSV manifests (zero data leakage)
-│       ├── char_classes_122.csv   # 122 discrete classes categorized by linguistic group
-│       ├── dataset_1_lines.csv    # 14,383 lines (Document-independent split)
-│       ├── dataset_1_words.csv    # 108,181 words (Document-independent split)
-│       └── dataset_2_chars.csv    # 367,018 characters across 5,023 writers (Writer-independent split)
+├── src/                      # Source code
+│   ├── models/               # Model architectures
+│   │   ├── banghtr_x.py      # BanglaGHTR unified model class
+│   │   ├── vision/           # ConvNeXt visual stem
+│   │   ├── grapheme/         # Matra attention + MoE fusion
+│   │   ├── encoder/          # Transformer encoder
+│   │   └── decoder/          # CTC + Attention decoders
+│   ├── data/                 # Data pipeline
+│   │   ├── datasets.py       # PyTorch Dataset classes
+│   │   ├── transforms.py     # Augmentation pipeline
+│   │   ├── normalizer.py     # Bengali tokenizer + Unicode normalization
+│   │   └── grapheme_parser.py # Grapheme cluster decomposition
+│   ├── training/             # Training harnesses
+│   │   ├── trainer_htr.py    # Hybrid HTR trainer (Stage 2)
+│   │   ├── trainer_char.py   # Character pretrain trainer (Stage 1)
+│   │   └── scst_trainer.py   # SCST RL trainer (Stage 3)
+│   └── evaluation/           # Metrics (CER, WER, BG-CER, NED)
 │
-├── Dataset/Raw_dataset/           # Clean active datasets
-│   ├── BN-HTRd A Benchmark.../    # BN-HTR Ground truth (1-150) + Auto annotation (151-237)
-│   └── dataset_Char/              # 122 character folders (Ekush collection)
+├── scripts/                  # CLI tools
+│   ├── train_pipeline.py     # Full 3-stage training script
+│   ├── verify_pipeline.py    # Hardware + pipeline verification
+│   └── generate_manifests.py # Dataset manifest generation
 │
-├── archive/                       # Archive of raw compressed zip archives
-│   └── raw_zips/                  # Preserved .zip files moved safely out of working tree
+├── webapp/                   # Single-line Gradio demo
+│   ├── app.py                # Gradio interface
+│   └── inference.py          # Model inference + best prediction selection
 │
-├── src/                           # Modular research source code
-│   ├── data/                      # Datasets, transforms, normalizers, grapheme parser
-│   │   ├── normalizer.py          # Unicode NFC normalizer & BengaliTokenizer
-│   │   ├── transforms.py          # Aspect-ratio preserving padding & contrast inversion
-│   │   ├── grapheme_parser.py     # Root, vowel kar, and fola decomposition
-│   │   └── datasets.py            # PyTorch Dataset classes & CTC collator
-│   │
-│   ├── models/                    # Model architectures
-│   │   ├── vision/                # ConvNeXt visual stem & character backbones
-│   │   ├── grapheme/              # Matra attention & Diacritic/Conjunct MoE
-│   │   ├── decoder/               # CTC sequence decoder & greedy search
-│   │   └── banghtr_x.py           # Unified BanglaGHTR Model class
-│   │
-│   ├── training/                  # Training harnesses
-│   │   ├── trainer_char.py        # Stage 1 pretraining harness
-│   │   └── trainer_htr.py         # Stage 4 line sequence HTR harness
-│   │
-│   ├── evaluation/                # Metrics
-│   │   └── metrics.py             # CER, WER, and BG-CER (Bengali Grapheme CER)
-│   │
-│   └── utils/                     # Hardware and logging utilities
-│       ├── device.py              # RTX 4090 GPU detection & deterministic seeds
-│       └── logger.py              # Reproducible experiment logger & env recorder
+├── webapp_full_paragraph/    # Paragraph recognition Flask app
+│   ├── app.py                # Flask server
+│   ├── pipeline.py           # End-to-end paragraph pipeline
+│   └── segmenter.py          # OpenCV line segmentation
 │
-├── scripts/                       # Executable CLI workflows
-│   ├── generate_manifests.py      # Automated manifest generation
-│   └── verify_pipeline.py         # End-to-end hardware & pipeline verification
-│
-├── tests/                         # Automated unit & integration tests
-│   └── test_setup.py
-│
-├── checkpoints/                   # Saved model weights (best.pt, last.pt)
-├── logs/                          # Training logs and execution traces
-├── outputs/                       # Evaluation predictions and confusion matrices
-├── requirements.txt               # Pinned dependencies
-├── .gitignore
+├── datasets/manifests/       # CSV manifests (lightweight)
+├── exports/                  # Production model weights
+├── doc/project_docs/         # Technical documentation (gitignored)
+├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## 3. Dataset Preprocessing & Zero-Leakage Protocols
+## Datasets
 
-### `dataset_1` (BN-HTR Document HTR)
-* **Total Lines:** 14,383 lines across 150 ground-truth documents.
-* **Total Words:** 108,181 words.
-* **Document-Independent Split:**
-  * **Train:** 105 documents (9,894 lines / 74,260 words)
-  * **Validation:** 20 documents (1,914 lines / 14,833 words)
-  * **Test:** 25 documents (2,575 lines / 19,088 words)
-* **Aspect-Ratio Preserving Resize:** Line images are scaled to a fixed height ($H=64$) preserving horizontal aspect ratio, padded with white pixels (`255`).
+| Dataset | Description | Size |
+|---------|-------------|------|
+| **BN-HTRd** | Bengali handwritten line images | 14,383 lines, 150 documents |
+| **Ekush** | Isolated character images, 122 classes | 367,018 images, 5,023 writers |
 
-### `dataset_2` (Ekush 122 Isolated Characters)
-* **Total Instances:** 367,018 images ($28 \times 28$ grayscale).
-* **Taxonomy:** 10 Vowel Diacritics (0–9) + 11 Basic Vowels (10–20) + 39 Consonants (21–59) + 52 Compound Conjuncts (60–111) + 10 Numerals (112–121).
-* **Writer-Independent Split (5,023 Unique Writers):**
-  * **Train:** 4,018 writers (292,921 character images)
-  * **Validation:** 502 writers (35,801 character images)
-  * **Test:** 503 writers (38,296 character images)
-* **Contrast Inversion:** Images are converted from black background (`0`) with white stroke (`255`) to natural white paper (`255`) with dark stroke (`0`) via `255 - img`.
+Both datasets use strict leakage-free splits (document-independent for BN-HTRd, writer-independent for Ekush).
 
 ---
 
-## 4. Hardware & Environment
+## Quick Start
 
-* **Target GPU:** NVIDIA GeForce RTX 4090 (24 GB VRAM, Ada Lovelace, Compute Capability 8.9).
-* **CUDA / PyTorch:** PyTorch 2.0.1+cu117 with mixed precision (`torch.cuda.amp.autocast`).
-* **Environment:** Completely isolated inside `.venv/`. Does not modify server global packages or use `sudo`.
+### 1. Install dependencies
 
----
-
-## 5. Quickstart & Verification
-
-### Activate Environment
 ```bash
+python -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Run Sanity Verification
-Verifies GPU detection, data manifests, batch loading, forward/backward pass, and CTC decoding:
+### 2. Verify environment
+
 ```bash
 python scripts/verify_pipeline.py
 ```
 
-### Run Unit Tests
+### 3. Run single-line demo
+
 ```bash
-python tests/test_setup.py
+cd webapp
+python app.py
 ```
 
-### Re-generate Manifests
+### 4. Run paragraph demo
+
 ```bash
-python scripts/generate_manifests.py
+cd webapp_full_paragraph
+python app.py
 ```
+
+---
+
+## Training
+
+### Stage 1: Character Pretraining
+
+```bash
+python scripts/train_pipeline.py --stage pretrain_char --config configs/pretrain_char.yaml
+```
+
+### Stage 2: Supervised Hybrid HTR
+
+```bash
+python scripts/train_pipeline.py --stage htr --config configs/htr_v2.yaml
+```
+
+### Stage 3: SCST RL Refinement
+
+```bash
+python scripts/train_pipeline.py --stage rl --config configs/htr_v2.yaml --checkpoint checkpoints/best_model.pt
+```
+
+---
+
+## Evaluation Metrics
+
+| Metric | Description |
+|--------|-------------|
+| **CER** | Character Error Rate (edit distance / reference length) |
+| **WER** | Word Error Rate |
+| **BG-CER** | Bangla Grapheme Character Error Rate — edit distance at grapheme cluster level |
+| **NED** | Normalized Edit Distance [0,1], higher is better |
+| **Accuracy** | Exact match fraction |
+
+---
+
+## Hardware
+
+- **Target GPU:** NVIDIA GeForce RTX 4090 (24GB VRAM)
+- **Framework:** PyTorch 2.0+, CUDA 11.7
+- **Mixed precision:** FP16 AMP
+
+---
+
+## Documentation
+
+Full technical documentation is in `doc/project_docs/` (gitignored):
+
+- `RESEARCH_PAPER.md` — full architecture, training, and evaluation details
+- `PRESENTATION_SCRIPT.md` — 10-minute video presentation script with slide-by-slide narration
+- `POSTER.md` — academic conference poster layout and content
