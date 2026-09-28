@@ -1,6 +1,6 @@
-# BANGHTR-X v3 Web App
+# BanglaGHTR Web App
 
-An interactive Gradio web application for evaluating the state-of-the-art BANGHTR-X v3 Bengali Handwritten Text Recognition model.
+An interactive Gradio web application for evaluating the state-of-the-art BanglaGHTR Bengali Handwritten Text Recognition model.
 
 ## Features
 - **Dynamic Model Switcher:** Instantly compare Stage 2 Supervised Best (`best_model.pt`) vs Stage 3 RL Final (`banghtr_x_v2_rl_final.pt`) or production export.

@@ -39,11 +39,11 @@ else:
 # Save model weights only (stripping optimizer state to reduce file size)
 torch.save(state_dict, EXPORT_WEIGHTS)
 size_mb = os.path.getsize(EXPORT_WEIGHTS) / (1024 * 1024)
-print(f"✅ Stripped weights exported to: {EXPORT_WEIGHTS} ({size_mb:.1f} MB)")
+print(f"Stripped weights exported to: {EXPORT_WEIGHTS} ({size_mb:.1f} MB)")
 
 # Update metadata
 meta = {
-    "model_name": "BANGHTR-X v3",
+    "model_name": "BanglaGHTR",
     "num_classes": 170,
     "hidden_dim": 384,
     "encoder_layers": 6,

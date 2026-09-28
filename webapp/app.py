@@ -1,5 +1,5 @@
 """
-BANGHTR-X v3 — Bengali Handwritten Text Recognition Web Application
+BanglaGHTR — Bengali Handwritten Text Recognition Web Application
 Run:  cd /home/suza/HandWritenDetection/BanglaGHTR
       .venv/bin/python webapp/app.py
 Then open: http://localhost:7860
@@ -8,7 +8,7 @@ Then open: http://localhost:7860
 import os
 import sys
 import time
-import gradio as gr
+import gradio as gr  # type: ignore
 
 # Ensure webapp directory and project root are in sys.path
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,7 +18,7 @@ if CUR_DIR not in sys.path:
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from inference import predict, get_available_checkpoints, get_model_status, load_checkpoint
+from webapp.inference import predict, get_available_checkpoints, get_model_status, load_checkpoint
 
 # ── Checkpoints & Defaults ───────────────────────────────────────────────────
 CHECKPOINTS_MAP = get_available_checkpoints()
@@ -314,7 +314,7 @@ footer {
 """
 
 # ── Gradio Blocks UI ──────────────────────────────────────────────────────────
-with gr.Blocks(title="BANGHTR-X v3 — Bengali HTR", theme=gr.themes.Default(), css=CUSTOM_CSS) as demo:
+with gr.Blocks(title="BanglaGHTR — Bengali HTR") as demo:
 
     # Header Bar
     gr.HTML(
@@ -322,10 +322,10 @@ with gr.Blocks(title="BANGHTR-X v3 — Bengali HTR", theme=gr.themes.Default(), 
         <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0 14px; border-bottom: 1px solid #1e293b; margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 12px;">
                 <span style="font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; color: #ffffff;">
-                    BANGHTR<span style="color: #38bdf8;">-X</span>
+                    Bangla<span style="color: #38bdf8;">GHTR</span>
                 </span>
                 <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); padding: 3px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700;">
-                    v3 SOTA
+                    Production
                 </span>
                 <span style="color: #94a3b8; font-size: 0.9rem;">| &nbsp;Bengali Offline Handwritten Text Recognition</span>
             </div>
@@ -382,7 +382,6 @@ with gr.Blocks(title="BANGHTR-X v3 — Bengali HTR", theme=gr.themes.Default(), 
                 lines=1,
                 max_lines=1,
                 interactive=False,
-                show_copy_button=True,
                 elem_classes=["hero-prediction-card"]
             )
             infer_status = gr.HTML(
@@ -466,4 +465,5 @@ if __name__ == "__main__":
         server_port=7860,
         share=False,
         show_error=True,
+        css=CUSTOM_CSS,
     )

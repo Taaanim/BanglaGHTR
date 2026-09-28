@@ -1,5 +1,5 @@
 """
-Comprehensive End-to-End Verification Script for BANGHTR-X v2 Pipeline.
+Comprehensive End-to-End Verification Script for BanglaGHTR Pipeline.
 Tests all submodules, forward/backward passes, decoders, rewards, and datasets.
 """
 
@@ -29,7 +29,7 @@ from src.data.datasets import BanglaLineHTRDataset, collate_line_fn
 
 def run_verification():
     print("=" * 65)
-    print("🚀 BANGHTR-X v2: END-TO-END PIPELINE VERIFICATION SUITE")
+    print("BanglaGHTR: END-TO-END PIPELINE VERIFICATION SUITE")
     print("=" * 65)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -52,7 +52,7 @@ def run_verification():
     print(f"      Round-trip encoding verified: '{sample_text}' -> {enc} -> '{dec}'")
 
     # 2. Architecture & Forward/Backward Pass
-    print("\n[3/6] BANGHTR-X v2 Forward & Dual Loss Backward Check...")
+    print("\n[3/6] BanglaGHTR Forward & Dual Loss Backward Check...")
     with open("configs/htr_v2.yaml") as f:
         config = yaml.safe_load(f)
 

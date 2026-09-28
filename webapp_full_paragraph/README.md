@@ -2,7 +2,7 @@
 
 A document-level offline handwritten Bengali text recognition (HTR) research platform that seamlessly bridges:
 1. **OpenCV Heuristic Line Segmentation** (`segmenter.py`): Angular Hough deskewing, bilateral photometric filtering, adaptive Gaussian binarization, connected-component line height estimation, and smoothed horizontal projection profiling.
-2. **BANGHTR-X Deep Recognition Model** (`webapp/inference.py`): Hybrid CNN-Conformer / Transformer with multi-head CTC Beam Search and autoregressive Attention decoding.
+2. **BanglaGHTR Deep Recognition Model** (`webapp/inference.py`): Hybrid CNN-Conformer / Transformer with multi-head CTC Beam Search and autoregressive Attention decoding.
 
 ---
 
@@ -61,7 +61,7 @@ PORT=8080 HOST=0.0.0.0 .venv/bin/python webapp_full_paragraph/app.py
                                                   │
                                                   ▼
                         ┌──────────────────────────────────────────────────┐
-                        │          BANGHTR-X Deep Recognition Model        │
+                        │          BanglaGHTR Deep Recognition Model       │
                         │  1. Aspect-Ratio Preserving Normalization        │
                         │  2. Hybrid CNN-Conformer Feature Extractor       │
                         │  3. CTC Beam Search (W=1..10)                    │

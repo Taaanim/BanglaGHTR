@@ -1,4 +1,4 @@
-# Level 4: Line-Level Sequence HTR Configuration (BANGHTR-X)
+# Level 4: Line-Level Sequence HTR Configuration (BanglaGHTR)
 experiment_name: "banghtr_x_line_htr"
 stage: "line_htr"
 

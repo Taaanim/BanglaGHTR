@@ -2,7 +2,7 @@
 BanglaGHTR Full Paragraph Pipeline Module
 Integrates:
   1) OpenCV Heuristic Line Segmentation (segmenter.py)
-  2) BANGHTR-X Deep Bengali Handwritten Text Recognition (webapp/inference.py)
+  2) BanglaGHTR Deep Bengali Handwritten Text Recognition (webapp/inference.py)
 Provides end-to-end paragraph transcription and research diagnostics.
 """
 from __future__ import annotations
@@ -24,10 +24,10 @@ for p in [CUR_DIR, PROJECT_ROOT, WEBAPP_DIR]:
         sys.path.insert(0, p)
 
 from segmenter import segment_image, draw_boxes, crop_lines, preprocess
-from inference import predict, get_available_checkpoints, get_model_status, load_checkpoint
+from webapp.inference import predict, get_available_checkpoints, get_model_status, load_checkpoint
 
 
-def encode_jpeg(img: np.ndarray, quality: int = 88) -> str:
+def encode_jpeg(img: np.ndarray | None, quality: int = 88) -> str:
     """Encodes an OpenCV image to a base64 Data URI."""
     if img is None or img.size == 0:
         return ""
@@ -88,7 +88,7 @@ def draw_styled_boxes(image_bgr: np.ndarray, boxes: list) -> np.ndarray:
 def recognize_paragraph(
     image_bgr: np.ndarray,
     beam_width: int = 5,
-    checkpoint_path: str = None,
+    checkpoint_path: str | None = None,
     line_pad: int = 8,
     deskew: bool = True,
     max_thumb_height: int = 140,
@@ -97,7 +97,7 @@ def recognize_paragraph(
     Full End-to-End Paragraph Recognition Pipeline:
       1. Preprocesses image and segments into text lines using OpenCV projection profiling.
       2. Crops each detected line.
-      3. Passes each line through BANGHTR-X HTR model for CTC beam search + Attention decoding.
+      3. Passes each line through BanglaGHTR HTR model for CTC beam search + Attention decoding.
       4. Aggregates into complete paragraph transcription with per-line analytics.
 
     Returns:
@@ -149,7 +149,7 @@ def recognize_paragraph(
         # Convert crop BGR -> RGB for PIL/PyTorch pipeline
         crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
 
-        # Run BANGHTR-X inference
+        # Run BanglaGHTR inference
         recog_res = predict(crop_rgb, beam_width=int(beam_width), checkpoint_path=checkpoint_path)
 
         best_text = recog_res.get("best_text", "").strip()

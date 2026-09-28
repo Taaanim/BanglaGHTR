@@ -1,4 +1,4 @@
-# Global Configuration for BANGHTR-X Research Framework
+# Global Configuration for BanglaGHTR Research Framework
 project_name: "BanglaGHTR"
 experiment_id: "exp_001_initial_setup"
 seed: 42

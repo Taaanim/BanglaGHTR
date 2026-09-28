@@ -1,10 +1,10 @@
-# BanglaGHTR: BANGHTR-X Research Framework
+# BanglaGHTR: Bengali Handwritten Text Recognition Research Framework
 
-**BANGHTR-X (Bangla Hierarchical Adaptive Neural Grapheme Transformer)** is an advanced, research-grade handwritten text recognition (HTR) architecture for Bengali document-, line-, and character-level recognition.
+**BanglaGHTR (Bangla Grapheme-based Handwritten Text Recognition)** is an advanced, research-grade handwritten text recognition (HTR) architecture for Bengali document-, line-, and character-level recognition.
 
 ---
 
-## 1. System Architecture (BANGHTR-X)
+## 1. System Architecture (BanglaGHTR)
 
 ```text
                  HANDWRITTEN LINE / PARAGRAPH
@@ -60,7 +60,7 @@ BanglaGHTR/
 ├── configs/                       # Experiment and stage configuration files
 │   ├── base.yaml                  # Global parameters, paths, seeds, hardware
 │   ├── pretrain_char.yaml         # Stage 1: Isolated 122-class character pretraining
-│   └── htr_line.yaml              # Stage 4: Line-level sequence HTR (BANGHTR-X)
+│   └── htr_line.yaml              # Stage 4: Line-level sequence HTR (BanglaGHTR)
 │
 ├── datasets/                      # Manifests and data references
 │   └── manifests/                 # Master verified CSV manifests (zero data leakage)
@@ -87,7 +87,7 @@ BanglaGHTR/
 │   │   ├── vision/                # ConvNeXt visual stem & character backbones
 │   │   ├── grapheme/              # Matra attention & Diacritic/Conjunct MoE
 │   │   ├── decoder/               # CTC sequence decoder & greedy search
-│   │   └── banghtr_x.py           # Unified BANGHTR-X Model class
+│   │   └── banghtr_x.py           # Unified BanglaGHTR Model class
 │   │
 │   ├── training/                  # Training harnesses
 │   │   ├── trainer_char.py        # Stage 1 pretraining harness

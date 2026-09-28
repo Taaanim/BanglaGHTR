@@ -1,5 +1,5 @@
 {
-  "model_name": "BANGHTR-X v2",
+  "model_name": "BanglaGHTR",
   "num_classes": 170,
   "hidden_dim": 256,
   "encoder_layers": 4,

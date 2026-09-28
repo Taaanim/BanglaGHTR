@@ -1242,7 +1242,7 @@
             <div class="metric-card">
               <div class="metric-label">Recognition</div>
               <div class="metric-value" id="mRecogTime">-</div>
-              <div class="metric-sub" id="mPerLineRate">BANGHTR-X Deep Net</div>
+              <div class="metric-sub" id="mPerLineRate">BanglaGHTR Deep Net</div>
             </div>
           </div>
         </div>
@@ -1536,7 +1536,7 @@
 
       runBtn.disabled = true;
       runBtn.innerHTML = '<div class="spinner"></div> Transcribing Paragraph...';
-      actionStatus.innerText = 'Segmenting lines & running BANGHTR-X recognition...';
+      actionStatus.innerText = 'Segmenting lines & running BanglaGHTR recognition...';
       detBadge.innerText = 'Analyzing';
 
       try {
@@ -1870,7 +1870,7 @@
         return;
       }
       const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-      downloadBlob(blob, 'banghtr_paragraph_transcription.txt');
+      downloadBlob(blob, 'banglaghtr_paragraph_transcription.txt');
       showToast('Downloaded .txt file!');
     };
 
@@ -1887,7 +1887,7 @@
       delete exportData.images;
       const jsonStr = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
-      downloadBlob(blob, 'banghtr_paragraph_research_dump.json');
+      downloadBlob(blob, 'banglaghtr_paragraph_research_dump.json');
       showToast('Downloaded research .json dump!');
     };
 

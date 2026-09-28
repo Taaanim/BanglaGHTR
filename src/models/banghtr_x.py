@@ -349,3 +349,9 @@ class BANGHTR_X_V2(nn.Module):
         counts["total"] = sum(p.numel() for p in self.parameters())
         counts["trainable"] = sum(p.numel() for p in self.parameters() if p.requires_grad)
         return counts
+
+
+# Standard project aliases
+BanglaGHTR = BANGHTR_X_V2
+BanglaGHTR_V2 = BANGHTR_X_V2
+BanglaGHTR_V1 = BANGHTR_X

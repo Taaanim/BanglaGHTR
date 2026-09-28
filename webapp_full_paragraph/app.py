@@ -1,6 +1,6 @@
 """
 BanglaGHTR Full Paragraph Recognition Web Application
-Serves the merged OpenCV Line Segmenter + BANGHTR-X Deep Bengali HTR pipeline.
+Serves the merged OpenCV Line Segmenter + BanglaGHTR Deep Bengali HTR pipeline.
 
 Usage:
     cd /home/suza/HandWritenDetection/BanglaGHTR
@@ -30,7 +30,7 @@ for p in [CUR_DIR, PROJECT_ROOT, WEBAPP_DIR]:
 
 from pipeline import recognize_paragraph, encode_jpeg, draw_styled_boxes
 from segmenter import segment_image, crop_lines
-from inference import get_available_checkpoints, get_model_status, load_checkpoint
+from webapp.inference import get_available_checkpoints, get_model_status, load_checkpoint
 
 BASE_DIR = CUR_DIR
 SAMPLES_DIR = os.path.join(BASE_DIR, "sample_images")
@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
     host = os.environ.get("HOST", "0.0.0.0")
     print("\n" + "="*65)
-    print(" 🚀 BANGHTR-X Full Paragraph Recognition Research App")
+    print(" BanglaGHTR Full Paragraph Recognition Research App")
     print(f" 🌐 Running on: http://{host}:{target_port}  (Local: http://localhost:{target_port})")
     print("="*65 + "\n")
     app.run(host=host, port=target_port, debug=False, threaded=True)

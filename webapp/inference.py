@@ -1,8 +1,7 @@
 """
-BANGHTR-X v2 Inference Module
+BanglaGHTR Inference Module
 Loads the trained model and tokenizer, runs prediction on a handwritten Bengali line image.
 """
-
 import os
 import sys
 import json
@@ -10,6 +9,7 @@ import unicodedata
 import torch
 import numpy as np
 from PIL import Image
+from typing import Optional, Any, Dict, List
 
 # Add project root to path so src/ is importable
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -77,22 +77,22 @@ def get_available_checkpoints() -> dict:
     rl_final = os.path.join(ckpt_dir, "banghtr_x_v2_rl_final.pt")
     if os.path.exists(rl_final):
         size_mb = os.path.getsize(rl_final) / (1024 * 1024)
-        options[f"🎮 Stage 3 RL Final (banghtr_x_v2_rl_final.pt - {size_mb:.0f}MB)"] = rl_final
+        options[f"Stage 3 RL Final (banghtr_x_v2_rl_final.pt - {size_mb:.0f}MB)"] = rl_final
 
     rl_best = os.path.join(ckpt_dir, "banghtr_x_v2_rl_best.pt")
     if os.path.exists(rl_best):
         size_mb = os.path.getsize(rl_best) / (1024 * 1024)
-        options[f"🎮 Stage 3 RL Best (banghtr_x_v2_rl_best.pt - {size_mb:.0f}MB)"] = rl_best
+        options[f"Stage 3 RL Best (banghtr_x_v2_rl_best.pt - {size_mb:.0f}MB)"] = rl_best
 
     # 4. Production Export
     if os.path.exists(WEIGHTS_PATH):
         size_mb = os.path.getsize(WEIGHTS_PATH) / (1024 * 1024)
-        options[f"📦 Production Export (banghtr_x_v2_weights.pt - {size_mb:.0f}MB)"] = WEIGHTS_PATH
+        options[f"Production Export (banghtr_x_v2_weights.pt - {size_mb:.0f}MB)"] = WEIGHTS_PATH
 
     return options
 
 
-def load_checkpoint(target_path: str = None, force_reload: bool = False):
+def load_checkpoint(target_path: Optional[str] = None, force_reload: bool = False):
     """
     Loads or switches the active model checkpoint.
     If target_path is None, chooses the highest-priority available checkpoint.
@@ -144,7 +144,7 @@ def load_checkpoint(target_path: str = None, force_reload: bool = False):
         ).to(_device)
 
     # Load weights
-    print(f"[BANGHTR-X] Loading weights from: {target_path}...")
+    print(f"[BanglaGHTR] Loading weights from: {target_path}...")
     state = torch.load(target_path, map_location="cpu", weights_only=False)
     _checkpoint_metadata = {}
 
@@ -180,7 +180,7 @@ def load_checkpoint(target_path: str = None, force_reload: bool = False):
     if _checkpoint_metadata.get("val_cer") is not None:
         meta_str += f" | Val CER: {_checkpoint_metadata['val_cer']*100:.2f}%"
 
-    print(f"[BANGHTR-X] Active model: {base}{meta_str} on {_device}")
+    print(f"[BanglaGHTR] Active model: {base}{meta_str} on {_device}")
     return _model
 
 
@@ -383,9 +383,9 @@ def _decode_tokens(token_ids: list[int]) -> str:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def predict(image: Image.Image, beam_width: int = 5, checkpoint_path: str = None) -> dict:
+def predict(image: Image.Image, beam_width: int = 5, checkpoint_path: Optional[str] = None) -> dict:
     """
-    Run BANGHTR-X inference on an image.
+    Run BanglaGHTR inference on an image.
 
     Args:
         image: PIL Image, numpy array, or file path string.
